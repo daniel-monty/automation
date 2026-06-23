@@ -1,0 +1,74 @@
+[project]
+name = "montycloud-e2e"
+version = "0.1.0"
+description = "API-first, UI-supported end-to-end BDD automation suite for the MontyCloud platform (pytest + pytest-bdd)."
+readme = "README.md"
+requires-python = ">=3.11"
+
+# Latest *compatible* pins, researched 2026-06. See README "Versions & compatibility".
+# This suite is standalone and runs against deployed environments (default: dev1).
+dependencies = [
+    "pytest>=8.3",               # resolver picks newest compatible across pytest-bdd + schemathesis
+    "pytest-bdd>=8.1.0",         # BDD layer (plugin on top of pytest — one runner, not two)
+    "pytest-playwright>=0.8.0",  # UI E2E (thin, critical journeys only)
+    "playwright>=1.60.0",        # browser engine; run `playwright install` after pip install
+    "httpx>=0.28.1",             # API E2E client (the workhorse)
+    "schemathesis>=4.21.0",      # contract/fuzz E2E from an OpenAPI spec (nightly)
+    "allure-pytest-bdd>=2.16.0", # adapter: maps Gherkin -> Allure (epic/feature/story + steps)
+    "polyfactory>=3.3.0",        # arrange-via-API data factories on Pydantic models
+    "pydantic>=2.13.0",
+    "pydantic-settings>=2.14.0", # single typed config object from env
+    "boto3>=1.34",               # Cognito (cognito-idp) token mint for auth
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.0",  # lint + format (scoped to this suite only)
+    "mypy>=2.1.0",   # type-check
+    "pre-commit>=4.0",
+]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.3"
+testpaths = ["tests"]
+pythonpath = ["."]
+bdd_features_base_dir = "tests/features"
+# allure results land here; Allure 3 CLI (npm `allure`) renders them.
+addopts = "--alluredir=allure-results --strict-markers -ra"
+markers = [
+    "smoke: fast must-pass checks; part of the PR gate",
+    "critical: business-critical journeys; part of the PR gate",
+    "api: API-level E2E (httpx) — the workhorse layer",
+    "ui: UI E2E (Playwright) — thin, critical, browser-only journeys",
+    "regression: full regression set; nightly only",
+    "contract: schemathesis contract/fuzz; nightly only",
+]
+
+# ---------------------------------------------------------------------------
+# ruff (lint + format) — test code held to the same bar as production code
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "PL", "RUF", "ANN"]
+# ANN401: Any is legitimate for the base client's httpx passthrough kwargs.
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/step_defs/**" = []  # no relaxations: keep step defs honest (no logic/asserts/raw clients)
+
+# ---------------------------------------------------------------------------
+# mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["tests", "scripts"]
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true

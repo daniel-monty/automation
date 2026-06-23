@@ -1,0 +1,64 @@
+name: E2E Nightly
+
+# Full regression + schemathesis contract/fuzz + AI failure triage + history update.
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    name: Full regression + contract
+    runs-on: ubuntu-latest
+    env:
+      E2E_ENV: dev1
+      E2E_API_BASE_URL: ${{ secrets.E2E_API_BASE_URL }}
+      E2E_UI_BASE_URL: ${{ secrets.E2E_UI_BASE_URL }}
+      E2E_API_KEY: ${{ secrets.E2E_API_KEY }}
+      E2E_COGNITO_REGION: ${{ secrets.E2E_COGNITO_REGION }}
+      E2E_COGNITO_USER_POOL_ID: ${{ secrets.E2E_COGNITO_USER_POOL_ID }}
+      E2E_COGNITO_CLIENT_ID: ${{ secrets.E2E_COGNITO_CLIENT_ID }}
+      E2E_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
+      E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+      E2E_OPENAPI_SPEC: ${{ secrets.E2E_OPENAPI_SPEC }}
+      E2E_LLM_PROVIDER: ${{ secrets.E2E_LLM_PROVIDER }}
+      E2E_LLM_API_KEY: ${{ secrets.E2E_LLM_API_KEY }}
+      E2E_LLM_MODEL: ${{ secrets.E2E_LLM_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Python deps + browsers
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          playwright install --with-deps chromium
+      - name: Restore Allure history
+        uses: actions/cache@v4
+        with:
+          path: allure/history
+          key: allure-history-${{ github.run_id }}
+          restore-keys: allure-history-
+      - name: Full regression + contract
+        run: pytest -m "regression or contract" --alluredir=allure-results
+      - name: Generate Allure 3 report (with history)
+        if: always()
+        run: |
+          npm install -g allure
+          cp -r allure/history allure-results/history || true
+          allure generate allure-results --output allure-report --clean
+          cp -r allure-report/history allure/history || true
+      - name: AI failure triage (new/unknown failures only)
+        if: always()
+        run: python scripts/triage.py --allure-results allure-results || true
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-nightly
+          path: allure-report

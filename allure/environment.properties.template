@@ -1,0 +1,6 @@
+# Template. CI populates a copy into allure-results/ before `allure generate`,
+# so the report shows which environment produced the results.
+ENV=dev1
+API_BASE_URL=
+UI_BASE_URL=
+SUITE_COMMIT=

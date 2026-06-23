@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Known issues",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*KNOWN-ISSUE.*"
+  },
+  {
+    "name": "Infrastructure / environment",
+    "matchedStatuses": ["broken"],
+    "messageRegex": ".*(ConnectionError|ConnectTimeout|ReadTimeout|5\\d\\d).*"
+  },
+  {
+    "name": "Test defects",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Product defects",
+    "matchedStatuses": ["failed"]
+  }
+]

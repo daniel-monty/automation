@@ -1,0 +1,29 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Allure (generated; history is kept, results/report are not)
+allure-results/
+allure-report/
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
