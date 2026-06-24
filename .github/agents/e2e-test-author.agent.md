@@ -6,7 +6,7 @@ tools:
   - read
   - search
   - execute
-  - atlassian/atlassian-mcp-server/*
+  - atlassian/*
 ---
 
 # E2E Test Author

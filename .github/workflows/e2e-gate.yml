@@ -44,9 +44,6 @@ jobs:
       E2E_API_BASE_URL: ${{ secrets.E2E_API_BASE_URL }}
       E2E_UI_BASE_URL: ${{ secrets.E2E_UI_BASE_URL }}
       E2E_API_KEY: ${{ secrets.E2E_API_KEY }}
-      E2E_COGNITO_REGION: ${{ secrets.E2E_COGNITO_REGION }}
-      E2E_COGNITO_USER_POOL_ID: ${{ secrets.E2E_COGNITO_USER_POOL_ID }}
-      E2E_COGNITO_CLIENT_ID: ${{ secrets.E2E_COGNITO_CLIENT_ID }}
       E2E_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
       E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
     steps:

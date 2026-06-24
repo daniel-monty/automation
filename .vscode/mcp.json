@@ -1,0 +1,9 @@
+{
+  "$comment": "Atlassian (Jira/Confluence) MCP for VS Code Copilot. First use opens a browser for OAuth. The /sse endpoint is deprecated after 2026-06-30 — this uses /mcp/authv2. The GitHub Copilot coding agent (cloud) cannot do OAuth: configure it separately in repo Settings > Copilot > coding agent with an API token (see README).",
+  "servers": {
+    "atlassian": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest", "https://mcp.atlassian.com/v1/mcp/authv2"]
+    }
+  }
+}

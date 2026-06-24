@@ -58,17 +58,14 @@ rollback.
 - [ ] Passes **ruff** + **mypy**.
 - [ ] Correct layer choice justified by the **two-gate rule** (API unless it truly needs a browser).
 
-## Ban list (PR checklist — reject if any appear)
+## Ban list (PR checklist)
 
-- [ ] Logic / assertions / conditionals in step defs
-- [ ] Raw `httpx` or `page.locator` in tests/steps
-- [ ] Hardcoded data, URLs, or magic strings
-- [ ] `sleep` / manual waits (use Playwright auto-wait / explicit conditions)
-- [ ] God page-objects or kitchen-sink clients
-- [ ] Shared mutable state between tests
-- [ ] Copy-pasted step defs (use the shared parametrized library)
-- [ ] State set up through the UI (must be arrange-via-API)
-- [ ] Silent locator self-heal (every heal must log a loud warning)
+The canonical ban list lives in
+[`.github/instructions/e2e-best-practices.instructions.md`](.github/instructions/e2e-best-practices.instructions.md)
+— auto-applied to `tests/**` and enforced by the `e2e-test-reviewer` agent. Reject a PR if any
+item appears. In short: no logic / asserts / raw `httpx` / locators in step defs · no Playwright
+`APIRequestContext` for API tests · no hardcoded data or URLs · no `sleep` · no god-objects or
+shared mutable state · no copy-pasted step defs · no UI-seeded state · no silent locator self-heal.
 
 ## Golden exemplars
 

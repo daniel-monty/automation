@@ -19,8 +19,19 @@ This repo provides reusable prompts in `.github/prompts/` for authoring test cas
 
 **Typical flow:** `/decide-api-vs-ui` → `/add-api-test` *or* `/add-ui-test`.
 
-These prompts operate as the **`e2e-test-author`** agent (`.github/agents/`). The
-**`e2e-test-reviewer`** agent reviews a diff against the ban list (read + lint only).
+These prompts operate as the **`e2e-test-author`** agent (`.github/agents/`). Two more agents:
+**`e2e-test-reviewer`** reviews a diff against the ban list (read + lint only), and
+**`e2e-failure-triage`** triages new failures from an Allure run (classify, dedupe, post).
+
+---
+
+## MCP servers (Jira / Confluence)
+
+The **Atlassian MCP** is wired for Copilot (`.vscode/mcp.json`, OAuth on first use). Agents use
+it to: fetch a Jira ticket's acceptance criteria when authoring a test, read the known/blocked
+list during triage, and post triage summaries / draft issues. The GitHub Copilot **coding agent**
+(cloud) cannot do OAuth — it needs an API-token MCP config in repo settings (see `tests/README.md`).
+Never paste Jira tokens into the repo; the coding-agent token is a repo secret.
 
 ---
 

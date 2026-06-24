@@ -22,7 +22,7 @@ Input: `${input:journey:Describe the journey, or paste a Jira key}` (fetch Jira 
 
 ## Step 2: Explore the live app (Playwright agent stack)
 
-Use the **Playwright CLI** (`@playwright/cli`) or Playwright MCP to explore the deployed dev1
+Use the Python **`playwright` CLI** (`playwright codegen`) or Playwright MCP to explore the deployed dev1
 app (`E2E_UI_BASE_URL`) and identify **role-based** locators (`getByRole`/`getByLabel`) for the
 journey. Prefer the accessibility tree over CSS.
 

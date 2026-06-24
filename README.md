@@ -41,7 +41,7 @@ git clone <repo-url> && cd Automation
 python3.12 -m venv .venv && source .venv/bin/activate     # Python 3.11+
 pip install -e . && pip install ruff mypy pre-commit
 playwright install                                         # browsers
-npm install                                                # Allure 3 CLI + Playwright CLI
+npm install                                                # Allure 3 report CLI
 cp .env.example .env                                       # fill in dev1 creds (never commit)
 
 pytest -m "smoke or critical"                              # run the gate subset
@@ -84,9 +84,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full Definition of Done and the b
 | Requirement | Why | Check |
 |---|---|---|
 | **Python 3.11+** | the suite's own venv (decoupled from the app's 3.7 runtime) | `python3 --version` |
-| **Node 18+** (20+ recommended) | Allure 3 CLI + Playwright tooling | `node --version` |
+| **Node 18+** (20+ recommended) | Allure 3 CLI (+ optional Playwright MCP) | `node --version` |
 | **dev1 access** | tests hit the deployed dev1 API/UI | see [§4](#4-configuration-env) |
-| **Cognito test user** (no-MFA) + `x_api_key` | auth for API/UI calls | from the platform team |
+| **No-MFA test user** | logs in via `/auth/signin` for API/UI calls | from the platform team |
 
 If you don't have Python 3.11+: `brew install python@3.12` (macOS) or use `pyenv`/`uv`.
 If your Node is old: `brew install node` or `nvm install 20`.
@@ -110,11 +110,16 @@ playwright install                    # or: playwright install --with-deps chrom
 # 3. Git hooks (ruff + mypy on commit)
 pre-commit install
 
-# 4. Node tooling — Allure 3 CLI + Playwright CLI
+# 4. Node tooling — Allure 3 report CLI
 npm install
 
 # 5. Environment
 cp .env.example .env                  # then fill it in (see §4)
+
+# 6. (optional) Atlassian MCP for Jira/Confluence — config in .vscode/mcp.json.
+#    VS Code Copilot opens a browser for OAuth on first use. The Copilot coding agent
+#    (cloud) can't do OAuth — set it up in repo Settings > Copilot > coding agent with an
+#    API token stored as the secret COPILOT_MCP_ATLASSIAN_API_KEY.
 ```
 
 > The Allure **3** CLI ships as the npm package `allure` (in `devDependencies`). `npm install`
@@ -133,18 +138,26 @@ is prefixed `E2E_` and loaded from `.env` (gitignored) or real env vars in CI. C
 | `E2E_ENV` | target env label (default `dev1`) | — |
 | `E2E_API_BASE_URL` | dev1 API base URL | platform team / OpenAPI `servers` |
 | `E2E_UI_BASE_URL` | dev1 app URL (for Playwright) | platform team |
-| `E2E_API_KEY` | `x-api-key` header value | platform team (secret) |
-| `E2E_COGNITO_REGION` | Cognito region (e.g. `us-east-1`) | platform team |
-| `E2E_COGNITO_USER_POOL_ID` | Cognito user pool | platform team |
-| `E2E_COGNITO_CLIENT_ID` | Cognito **app client** (USER_PASSWORD_AUTH enabled) | platform team |
-| `E2E_TEST_USERNAME` / `E2E_TEST_PASSWORD` | dedicated **no-MFA** test user | platform team (secret) |
+| `E2E_TEST_USERNAME` / `E2E_TEST_PASSWORD` | dedicated **no-MFA** test user (logs in via `/auth/signin`) | platform team (secret) |
+| `E2E_AUTH_HEADER_SCHEME` | blank = raw token; `Bearer` = `Bearer <token>` | confirmed: blank (raw) |
+| `E2E_API_KEY` | `x-api-key` header — blank if endpoints don't need it | platform team (secret) |
 | `E2E_OPENAPI_SPEC` | path/URL to the richer OpenAPI spec | drives `@contract` layer |
-| `E2E_LLM_*` | optional LLM for failure triage | off the gating path |
-| `E2E_JIRA_*` | optional Jira project for requirement links | — |
 
-**How auth works:** `tests/support/auth.py` mints a Cognito **ID token** via `USER_PASSWORD_AUTH`
-and sends it as `Authorization` alongside `x-api-key`. Tests never handle tokens directly — the
-`api_client` fixture attaches both headers automatically.
+Failure triage and Jira are handled by Copilot agents via the **Atlassian MCP** (`.vscode/mcp.json`),
+not by env config.
+
+**How auth works:** `tests/support/auth.py` logs in **once per session** via the platform's
+`POST /auth/signin` (the same endpoint the app uses) over httpx, **caches** the tokens, and
+**refreshes** them (`POST /auth/refresh-token`) just before expiry — so requests make no per-call
+login. The cached ID token is sent as `Authorization` (raw, no `Bearer`); `x-api-key` is added
+only when set. Tests never handle tokens directly — the `api_client` fixture attaches headers and
+**retries once on a 401** after refreshing.
+
+- **Negative-auth tests:** use the `unauthenticated_api_client` fixture (no auth headers) to
+  assert `401`/`403`, or pass `headers={"Authorization": "bad"}` to a request to test a bad token.
+- **UI auth:** UI tests start **pre-authenticated** — `tests/support/ui_auth.py` mints a token and
+  injects it as a Playwright `storage_state` (arrange-via-API login), so no test logs in through
+  the form except the dedicated login-journey test.
 
 > ⚠️ **Never commit `.env`.** It is gitignored. In CI, the same values come from GitHub secrets.
 
@@ -251,7 +264,8 @@ Allure-step assertions — fully tagged — then runs `ruff`/`mypy`/`pytest`.
 /add-ui-test  "login, then the cost dashboard renders my data"    # or a Jira key
 ```
 
-Uses the Playwright CLI/agent to find **role-based** locators on the live dev1 app, seeds state
+Uses the Python `playwright` CLI (`playwright codegen`) / Playwright MCP to find **role-based**
+locators on the live dev1 app, seeds state
 **via the API** (never the UI), asserts structure with an **ARIA snapshot**
 (`to_match_aria_snapshot`), and attaches screenshots/traces to Allure on failure. Templates: §7–9.
 
@@ -304,18 +318,18 @@ to a Jira requirement on at least one scenario per feature.
 ```
 Automation/
 ├── pyproject.toml            # deps + pytest/ruff/mypy config (single source of truth)
-├── package.json              # Allure 3 CLI + Playwright CLI (Node tooling)
+├── package.json              # Allure 3 report CLI (Node tooling)
 ├── conftest.py               # root fixtures: settings, authenticator, api_client
 ├── .env.example              # env template (copy to .env; secrets out of repo)
 ├── AGENTS.md                 # agent source-of-truth (conventions, ban list, commands)
 ├── CONTRIBUTING.md           # Definition of Done + PR checklist
 ├── allure/                   # Allure 3 config, categories, known-issues, self-hosted history
-├── scripts/triage.py         # AI failure triage (off the gating path)
+├── .vscode/mcp.json          # Atlassian (Jira/Confluence) MCP for VS Code Copilot
 ├── .github/
 │   ├── copilot-instructions.md
 │   ├── instructions/         # e2e-best-practices.instructions.md (+ .reference.md templates)
 │   ├── prompts/              # /add-api-test, /add-ui-test, /decide-api-vs-ui, /add-contract-test
-│   ├── agents/               # e2e-test-author, e2e-test-reviewer
+│   ├── agents/               # e2e-test-author, e2e-test-reviewer, e2e-failure-triage
 │   └── workflows/            # e2e-gate (PR) + e2e-nightly
 └── tests/
     ├── features/  api/ ui/   # Gherkin (.feature) — declarative, stakeholder-readable
@@ -352,20 +366,20 @@ GitHub Actions (`.github/workflows/`):
   Allure history, runs the triage script, uploads the report.
 
 **Required GitHub secrets** (Settings → Secrets → Actions): `E2E_API_BASE_URL`, `E2E_UI_BASE_URL`,
-`E2E_API_KEY`, `E2E_COGNITO_REGION`, `E2E_COGNITO_USER_POOL_ID`, `E2E_COGNITO_CLIENT_ID`,
-`E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`, and (nightly) `E2E_OPENAPI_SPEC`, `E2E_LLM_*`.
+`E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`, `E2E_API_KEY` (if endpoints need it), and (nightly)
+`E2E_OPENAPI_SPEC`. (The Atlassian MCP for the coding agent uses its own
+`COPILOT_MCP_ATLASSIAN_API_KEY` secret — see §3.)
 
 ---
 
 ## 12. AI failure triage
 
-```bash
-python scripts/triage.py --allure-results allure-results
-```
-
-Determinism gates; AI only accelerates triage. Allure 3 known-issues handles known/blocked items;
-this script classifies only **new, unknown** failures (`regression | flaky | env | test-bug`). The
-LLM provider is configurable via `E2E_LLM_*` and entirely optional — it never blocks the PR gate.
+Triage is the **`e2e-failure-triage`** Copilot agent (`.github/agents/`), not a script. After a run
+(locally on `allure-results/`, or on the nightly CI artifacts), invoke it in Copilot: it excludes
+known issues (via the Atlassian/Jira MCP), classifies only **new** failures
+(`regression | flaky | env | test-bug`), dedupes, drafts a root-cause summary, and posts it to the
+PR / Jira. Determinism gates — the agent only accelerates triage; it never blocks the PR gate and
+never edits tests.
 
 ---
 
@@ -377,7 +391,7 @@ LLM provider is configurable via `E2E_LLM_*` and entirely optional — it never 
 | `ModuleNotFoundError: tests.support` | Activate the venv and run `pip install -e .`. `pythonpath=["."]` is set in `pyproject.toml`. |
 | `allure: command not found` | Run `npm install` (local) or `npm i -g allure`. Needs Node 18+. |
 | `Executable doesn't exist … playwright` | Run `playwright install`. |
-| Cognito `NotAuthorizedException` / `InvalidParameterException` | Check `E2E_TEST_USERNAME/PASSWORD`, ensure the user has **no MFA** and the app client has **USER_PASSWORD_AUTH** enabled. |
+| `/auth/signin` 401 or a "challenge" error | Check `E2E_TEST_USERNAME/PASSWORD`; the user must be **no-MFA** with a **permanent** password (no NEW_PASSWORD / MFA challenge). |
 | schemathesis "spec not found" | Set `E2E_OPENAPI_SPEC` to a reachable OpenAPI 3.x spec. |
 | `ruff`/`mypy` fail on commit | Run them locally and fix the root cause — they are not suppressed. |
 | pytest can't find Python 3.11+ | Create the venv with `python3.12`/`python3.13`; the app's 3.7 is unrelated. |

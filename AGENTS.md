@@ -42,6 +42,11 @@ npm run report:generate && npm run report:open   # or: npm run report:watch
 | Contract / fuzz | `schemathesis` (from OpenAPI) | nightly | `@contract` |
 | UI E2E (thin, critical) | Playwright (`pytest-playwright`) | ~30% | `@ui` |
 
+**One HTTP tool per concern:** the API and contract layers use **`httpx`** (browserless, fast,
+typed, pairs with schemathesis + Polyfactory); **Playwright is UI-only**. Do **not** use
+Playwright's `APIRequestContext` / `context.request` for API tests. (Inside a UI test,
+`context.request` is allowed only for a cookie-bound arrange step — prefer the httpx client objects.)
+
 **Two-gate rule for a UI test:** (a) is the journey critical, *and* (b) does it genuinely
 need a browser? If an API call can prove it, it is an **API** test. Default new tests to API.
 
@@ -59,7 +64,6 @@ tests/
   contract/               # schemathesis wiring
 conftest.py               # root fixtures
 allure/                   # Allure 3 config + self-hosted history
-scripts/triage.py         # AI failure triage (off the gating path)
 ```
 
 ## Conventions
@@ -72,16 +76,13 @@ scripts/triage.py         # AI failure triage (off the gating path)
 - Full Definition-of-Done + reuse patterns: [CONTRIBUTING.md](CONTRIBUTING.md) and
   `.github/instructions/e2e-best-practices.instructions.md`.
 
-## Boundaries (never do these — the ban list)
+## Boundaries
 
-- ❌ Logic, assertions, or conditionals in step defs.
-- ❌ Raw `httpx` or `page.locator` in tests/steps (use client objects / page objects).
-- ❌ Hardcoded data, URLs, magic strings.
-- ❌ `sleep` / manual waits (use Playwright auto-wait / explicit conditions).
-- ❌ God page-objects or kitchen-sink clients; shared mutable state between tests.
-- ❌ Copy-pasted step defs (use the shared parametrized library).
-- ❌ State set up through the UI; silent locator self-heal (every heal logs a loud warning).
-- ❌ Unit tests; modifying the MontyCloud application code.
+- ❌ **Do not modify the MontyCloud application code** — only add/maintain test infrastructure.
+- ❌ **No unit tests** — E2E / system-level only.
+- The full test-authoring **ban list** (thin step defs; no raw `httpx`/locators; no Playwright
+  `APIRequestContext` for API; arrange-via-API; no `sleep`/god-objects/copy-paste; no silent
+  self-heal) is canonical in `.github/instructions/e2e-best-practices.instructions.md`.
 
 ## Workflow (slash prompts)
 
@@ -91,3 +92,11 @@ scripts/triage.py         # AI failure triage (off the gating path)
 - `/add-contract-test` — wire a schemathesis contract/fuzz test from the spec.
 
 Every authored test must pass `ruff`, `mypy`, and the layering/ban-list checks before done.
+
+## Agents & MCP
+
+Agents (`.github/agents/`): **`e2e-test-author`** (prompts delegate to it), **`e2e-test-reviewer`**
+(read + lint, ban-list enforcement), **`e2e-failure-triage`** (classify/dedupe/post new failures).
+The **Atlassian MCP** (`.vscode/mcp.json`) gives agents Jira/Confluence access — fetch ticket
+acceptance criteria, read the known-issues list, post triage summaries. Don't put Jira tokens in
+the repo.

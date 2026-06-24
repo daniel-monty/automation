@@ -132,7 +132,7 @@ def context() -> dict[str, object]:
 
 @given("I am an authenticated subscribed user")
 def _authenticated() -> None:
-    """Auth is provided by the api_client fixture (Cognito + x_api_key)."""
+    """Auth is provided by the api_client fixture (login via /auth/signin)."""
 
 
 @when(parsers.parse('I create a resource named "{name}"'))

@@ -25,25 +25,18 @@ class Settings(BaseSettings):
     api_base_url: str = ""
     ui_base_url: str = ""
 
-    # Auth.
-    api_key: SecretStr = SecretStr("")
-    cognito_region: str = "us-east-1"
-    cognito_user_pool_id: str = ""
-    cognito_client_id: str = ""
+    # Auth — HTTP /auth/signin (the platform's Cognito proxy).
+    auth_signin_path: str = "/auth/signin"
+    auth_refresh_path: str = "/auth/refresh-token"
     test_username: str = ""
     test_password: SecretStr = SecretStr("")
+    # Authorization header scheme: "" sends the raw token; e.g. "Bearer" sends "Bearer <token>".
+    auth_header_scheme: str = ""
+    # x-api-key header — only if the target endpoints require it.
+    api_key: SecretStr = SecretStr("")
 
     # Contract / fuzz (schemathesis).
     openapi_spec: str = ""
-
-    # AI failure triage (optional, off the gating path).
-    llm_provider: str = ""
-    llm_api_key: SecretStr = SecretStr("")
-    llm_model: str = ""
-
-    # Jira (requirement links + known-issues sync; optional).
-    jira_base_url: str = ""
-    jira_project_key: str = ""
 
 
 @lru_cache

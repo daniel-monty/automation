@@ -26,6 +26,11 @@ A journey earns a **UI** test only if (a) it is critical **and** (b) it genuinel
 browser (the value is the rendered experience or a true cross-system flow). Otherwise it is
 an **API** test. Default new tests to API.
 
+**One HTTP tool per concern:** API and contract tests use **`httpx`** (via the client objects) —
+**never** Playwright's `APIRequestContext` / `context.request`. Playwright is for UI rendering
+and interaction only. (`context.request` is permissible inside a UI test solely for a
+cookie-bound arrange step, but prefer the httpx client objects there too.)
+
 ## Tags (one scheme, three jobs)
 
 `@smoke @critical @api @ui @regression @contract` + Allure `epic/feature/story`.
@@ -54,4 +59,5 @@ passes `ruff` + `mypy` · layer justified by the two-gate rule.
 Logic/assertions/conditionals in step defs · raw `httpx` or `page.locator` in tests/steps ·
 hardcoded data/URLs · `sleep`/manual waits · god page-objects or kitchen-sink clients ·
 shared mutable state between tests · copy-pasted step defs · state set up via the UI ·
+Playwright `APIRequestContext` for API tests (use httpx) ·
 silent locator self-heal (every heal must log a loud warning).

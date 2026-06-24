@@ -1,6 +1,7 @@
 name: E2E Nightly
 
-# Full regression + schemathesis contract/fuzz + AI failure triage + history update.
+# Full regression + schemathesis contract/fuzz + history update. Failure triage is run by the
+# `e2e-failure-triage` Copilot agent against the uploaded artifacts (not a CI step).
 
 on:
   schedule:
@@ -16,15 +17,9 @@ jobs:
       E2E_API_BASE_URL: ${{ secrets.E2E_API_BASE_URL }}
       E2E_UI_BASE_URL: ${{ secrets.E2E_UI_BASE_URL }}
       E2E_API_KEY: ${{ secrets.E2E_API_KEY }}
-      E2E_COGNITO_REGION: ${{ secrets.E2E_COGNITO_REGION }}
-      E2E_COGNITO_USER_POOL_ID: ${{ secrets.E2E_COGNITO_USER_POOL_ID }}
-      E2E_COGNITO_CLIENT_ID: ${{ secrets.E2E_COGNITO_CLIENT_ID }}
       E2E_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
       E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
       E2E_OPENAPI_SPEC: ${{ secrets.E2E_OPENAPI_SPEC }}
-      E2E_LLM_PROVIDER: ${{ secrets.E2E_LLM_PROVIDER }}
-      E2E_LLM_API_KEY: ${{ secrets.E2E_LLM_API_KEY }}
-      E2E_LLM_MODEL: ${{ secrets.E2E_LLM_MODEL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,12 +48,15 @@ jobs:
           cp -r allure/history allure-results/history || true
           allure generate allure-results --output allure-report --clean
           cp -r allure-report/history allure/history || true
-      - name: AI failure triage (new/unknown failures only)
-        if: always()
-        run: python scripts/triage.py --allure-results allure-results || true
       - name: Upload Allure report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-report-nightly
           path: allure-report
+      - name: Upload Allure results (raw — input for the e2e-failure-triage agent)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-nightly
+          path: allure-results
