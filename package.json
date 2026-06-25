@@ -7,9 +7,10 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "report:generate": "allure generate allure-results --output allure-report --clean",
+    "report:clean": "rm -rf allure-results allure-report",
+    "report:generate": "allure generate allure-results --output allure-report --config allure/allurerc.mjs",
     "report:open": "allure open allure-report",
-    "report:watch": "allure watch allure-results"
+    "report:watch": "allure watch allure-results --config allure/allurerc.mjs"
   },
   "devDependencies": {
     "allure": "^3.12.0"

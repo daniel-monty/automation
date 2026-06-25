@@ -65,7 +65,7 @@ jobs:
         if: always()
         run: |
           npm install -g allure
-          allure generate allure-results --output allure-report --clean
+          allure generate allure-results --output allure-report --config allure/allurerc.mjs
       - name: Upload Allure report
         if: always()
         uses: actions/upload-artifact@v4

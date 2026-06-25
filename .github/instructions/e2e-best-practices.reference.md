@@ -269,17 +269,25 @@ def test_api_contract(case: schemathesis.Case) -> None:
 
 ## Allure grouping (stakeholder-readable)
 
-Add epic/feature/story so leadership reads the report in business terms:
+`scenarios(...)` auto-generates the test functions, so you **cannot** decorate them, and
+**`allure.dynamic.*` raises under `allure-pytest-bdd` at fixture setup** (`AttributeError:
+'NoneType' object has no attribute 'labels'`). Set epic/feature/story with module-level
+`pytestmark`:
 
 ```python
+from typing import Any
+
 import allure
 
-@allure.epic("Cost Management")
-@allure.feature("Resources")
-@allure.story("Lifecycle")
-@allure.link("https://montycloud.atlassian.net/browse/PRO-1234", name="PRO-1234")
-def test_...(): ...
+# allure's decorators are untyped — alias via Any to satisfy mypy strict.
+_allure: Any = allure
+pytestmark = [
+    _allure.epic("Assessments"),
+    _allure.feature("WAFR Workloads"),
+    _allure.story("List"),
+    _allure.link("https://montycloud.atlassian.net/browse/PRO-1234", name="PRO-1234"),
+]
 ```
 
-For BDD, the `allure-pytest-bdd` adapter maps `Feature`/`Scenario` automatically; add
-`epic/story` via tags or decorators on the bound test module.
+The Gherkin `Feature:` name already maps to an Allure feature automatically; the `pytestmark`
+labels add the leadership epic/feature/story grouping + the requirement link.

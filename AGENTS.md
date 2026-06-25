@@ -86,6 +86,7 @@ allure/                   # Allure 3 config + self-hosted history
 
 ## Workflow (slash prompts)
 
+- `/build-test-prompt` — turn a curl / Jira key / journey / draft into a ready-to-run `/add-*-test` prompt.
 - `/decide-api-vs-ui` — apply the two-gate rule to a candidate journey (run first).
 - `/add-api-test` — author a new API E2E journey.
 - `/add-ui-test` — author a thin UI E2E journey (Playwright).

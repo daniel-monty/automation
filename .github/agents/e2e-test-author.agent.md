@@ -29,13 +29,20 @@ You author end-to-end tests for the MontyCloud E2E suite. The `/add-api-test`,
   objects) → support/infra. Step defs orchestrate only — no logic, conditionals, raw `httpx`,
   raw locators, or inline asserts.
 - **Arrange-via-API:** seed and tear down state through the API with Polyfactory factories.
-  Never seed through the UI. Use ephemeral / namespaced data and clean up (dev1 is shared).
+  Never seed through the UI. Use ephemeral / namespaced data and clean up (dev1 is shared). If a
+  **create** endpoint exists, seed a known record and assert it appears (by id) — don't assert
+  against ambient environment data.
 - **Reuse before adding:** check `tests/support/` for an existing client object, page object,
   factory, or assertion before creating a new one. No copy-pasted step defs — use
   `parsers.parse` + `Background`.
 - **Tag every scenario** with a layer tag (`@api`/`@ui`) + run-selection tags
   (`@smoke`/`@critical`/`@regression`/`@contract`) and add Allure `epic/feature/story`.
 - **Assertions** are reusable domain assertions wrapped as Allure steps.
+- **Confirm the response shape before asserting** — read the API's response schema (app codebase /
+  OpenAPI spec) or run the call once. Never guess envelope keys or field names; never assert
+  query/filter params as response fields; **guard every collection assertion against empty** (assert
+  non-empty first); parse helpers must fail loudly on an unexpected shape (no `return []`). If the
+  shape is unknown, list it under **Confirm** and stop — don't guess.
 - **No magic strings/URLs** — everything flows from `Settings`. No secrets in code.
 - **Do not modify the MontyCloud application code.** Only add/maintain test infra.
 
@@ -45,7 +52,12 @@ You author end-to-end tests for the MontyCloud E2E suite. The `/add-api-test`,
       raw `httpx` in client object; assertion as an Allure step; correctly tagged.
 - [ ] `ruff check .` and `ruff format --check .` pass.
 - [ ] `mypy` passes.
-- [ ] `pytest <new test> ` collects and (with creds) runs; otherwise note the cred/spec gap.
+- [ ] **Actually run** `pytest <new test>` — not just `--collect-only`. Fixture/setup crashes
+      (e.g. Allure grouping) only surface on a real run; collect-green ≠ run-green. The
+      negative/unauthenticated scenario runs without login creds, so run at least that. Note any gap.
+- [ ] Response shape confirmed (not guessed); no query/filter params asserted as response fields;
+      every collection assertion guarded against empty; seeded via API when the resource is
+      creatable; no unused models/helpers.
 - [ ] No ban-list item present.
 
 If a precondition is missing (creds, base URL, OpenAPI spec, Jira test cases), **halt and

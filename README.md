@@ -198,8 +198,9 @@ parallelize — but mind shared-dev1 rate limits.
 ## 6. The Allure 3 report
 
 ```bash
-npm run report:generate   # allure generate allure-results --output allure-report --clean
-npm run report:open       # open the generated report in a browser
+npm run report:clean      # wipe allure-results/ + allure-report/ before a fresh run
+npm run report:generate   # build a single self-contained allure-report/index.html
+npm run report:open       # open the report (lands on it directly — no folder to click)
 npm run report:watch      # live-updating report while you run tests locally
 ```
 
@@ -328,7 +329,7 @@ Automation/
 ├── .github/
 │   ├── copilot-instructions.md
 │   ├── instructions/         # e2e-best-practices.instructions.md (+ .reference.md templates)
-│   ├── prompts/              # /add-api-test, /add-ui-test, /decide-api-vs-ui, /add-contract-test
+│   ├── prompts/              # /build-test-prompt, /decide-api-vs-ui, /add-api-test, /add-ui-test, /add-contract-test
 │   ├── agents/               # e2e-test-author, e2e-test-reviewer, e2e-failure-triage
 │   └── workflows/            # e2e-gate (PR) + e2e-nightly
 └── tests/

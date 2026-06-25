@@ -34,8 +34,15 @@ Read [`AGENTS.md`](../../AGENTS.md) and
 7. **Quality gates** — run and report:
    ```bash
    ruff check . ; ruff format --check . ; mypy
+   pytest <the new test>   # actually RUN it — --collect-only misses setup/fixture crashes
    ```
 8. **Locator self-heal** — any heal must log a loud warning, never silent.
+9. **Assertion integrity** — flag any test that can pass without exercising the behaviour:
+   a guessed response shape (envelope key / field names not confirmed against the app schema or
+   OpenAPI spec), query/filter params asserted as response fields, a collection / "every item"
+   assertion not guarded by a non-empty check, a parse helper that returns `[]` on an unknown
+   shape, or read-only assertions on ambient data where a create endpoint exists (should
+   arrange-via-API). Where feasible, confirm the real response shape before approving.
 
 ## Output
 

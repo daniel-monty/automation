@@ -25,10 +25,21 @@ Input: `${input:journey:Describe the journey, or paste a Jira key}`.
 From the journey, name the resource(s) and the endpoint(s) involved. If the path/payload is
 unknown, check the OpenAPI spec (`E2E_OPENAPI_SPEC`) or ask — **never invent endpoints**.
 
+## Step 2b: Confirm the response shape (don't guess)
+
+Before writing any body assertions, confirm the **actual** response structure — the envelope key
+and the real per-item field names. Run the call once, or read the API's response schema (the app
+codebase / OpenAPI spec). **Do not** invent keys, and **do not** assert query/filter params (e.g.
+`Provider`, `Status`) as if they were response fields — they usually aren't returned per item. If
+you can't confirm the shape, list it under **Confirm** and stop. Check whether a **create**
+endpoint exists so the happy path can seed a known record and assert it appears (arrange-via-API)
+rather than asserting against ambient data.
+
 ## Step 3: Plan and confirm
 
-State: target resource, files to add/extend, scenarios (happy + at least one negative), and
-tags. Get agreement before writing.
+State: target resource, files to add/extend, scenarios (happy + at least one negative), tags, and
+**the confirmed response shape + how the happy path avoids a vacuous pass** (seed + assert
+presence, or assert the collection is non-empty). Get agreement before writing.
 
 ## Step 4: Implement (reuse before adding)
 

@@ -12,6 +12,8 @@ or contradict it.
 
 This repo provides reusable prompts in `.github/prompts/` for authoring test cases:
 
+- `/build-test-prompt` — turn a curl / Jira key / journey / rough draft into a ready-to-run
+  `/add-*-test` prompt (generator + improver; outputs a prompt, doesn't write tests).
 - `/decide-api-vs-ui` — apply the two-gate rule to a candidate journey **before** writing code.
 - `/add-api-test` — author a new API E2E journey (the workhorse layer).
 - `/add-ui-test` — author a thin, critical UI E2E journey (Playwright).

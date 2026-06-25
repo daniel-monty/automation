@@ -13,9 +13,10 @@ venv/
 build/
 dist/
 
-# Allure (generated; history is kept, results/report are not)
+# Allure (generated). History persists via CI cache, not git, to avoid churn.
 allure-results/
 allure-report/
+allure/history/*.jsonl
 
 # Playwright
 test-results/
