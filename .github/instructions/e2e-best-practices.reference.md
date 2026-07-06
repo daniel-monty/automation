@@ -291,3 +291,7 @@ pytestmark = [
 
 The Gherkin `Feature:` name already maps to an Allure feature automatically; the `pytestmark`
 labels add the leadership epic/feature/story grouping + the requirement link.
+
+**Don't set `layer`/`severity` in `pytestmark`** — `conftest.py` derives them from the scenario
+tags automatically (`layer=E2E`; `@smoke`/`@critical` -> `critical` severity). Only set
+epic/feature/story (+ an optional Jira link) here.

@@ -37,6 +37,7 @@ You author end-to-end tests for the MontyCloud E2E suite. The `/add-api-test`,
   `parsers.parse` + `Background`.
 - **Tag every scenario** with a layer tag (`@api`/`@ui`) + run-selection tags
   (`@smoke`/`@critical`/`@regression`/`@contract`) and add Allure `epic/feature/story`.
+  (Allure `layer`/`severity` are auto-derived from tags by `conftest.py` — don't set them by hand.)
 - **Assertions** are reusable domain assertions wrapped as Allure steps.
 - **Confirm the response shape before asserting** — read the API's response schema (app codebase /
   OpenAPI spec) or run the call once. Never guess envelope keys or field names; never assert

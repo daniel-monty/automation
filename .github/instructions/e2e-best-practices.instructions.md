@@ -36,6 +36,9 @@ cookie-bound arrange step, but prefer the httpx client objects there too.)
 `@smoke @critical @api @ui @regression @contract` + Allure `epic/feature/story`.
 - Gate (PR): `@smoke`/`@critical`. Nightly: `@regression`/`@contract`.
 - Tag the `.feature` declaratively; every scenario gets a layer tag (`@api` or `@ui`).
+- **Allure `layer` (E2E) + `severity` are auto-derived from these tags** by `conftest.py`
+  (`pytest_collection_modifyitems`): `@smoke`/`@critical` -> `critical`, everything else ->
+  `normal`; every test -> `layer=E2E` (drives the Test Pyramid). Don't set them by hand.
 
 ## Data — arrange-via-API only
 

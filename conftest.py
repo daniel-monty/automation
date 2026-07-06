@@ -11,11 +11,28 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import allure
 import pytest
 from tests.support.api_client import ApiClient
 from tests.support.auth import Authenticator
 from tests.support.config import Settings, get_settings
 from tests.support.ui_auth import build_storage_state
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Derive Allure ``layer`` + ``severity`` labels from the tag taxonomy (drives the
+    Test Pyramid and Severity charts). Authors keep tagging scenarios as usual.
+
+    - ``layer = E2E`` on every test — this suite is E2E-only (unit/integration added later).
+    - ``severity``: ``@smoke`` / ``@critical`` -> ``critical``; everything else -> ``normal``.
+    """
+    _allure: Any = allure  # allure decorators are untyped; access via Any for mypy strict
+    for item in items:
+        marker_names = {marker.name for marker in item.iter_markers()}
+        item.add_marker(_allure.label("layer", "E2E"))
+        is_gate = bool({"smoke", "critical"} & marker_names)
+        severity = _allure.severity_level.CRITICAL if is_gate else _allure.severity_level.NORMAL
+        item.add_marker(_allure.severity(severity))
 
 
 @pytest.fixture(scope="session")

@@ -50,7 +50,8 @@ In dependency order, following the reference templates:
 4. **Step defs** (§6) — thin glue; orchestrate the client; `parsers.parse`; call domain assertions.
 5. **Assertions** (§4) — reuse `assert_status`; add domain assertions as Allure steps if needed.
 6. **Tags + Allure** — `@api` + `@smoke`/`@critical`/`@regression`; `epic/feature/story`;
-   add a Jira `@allure.link` on at least one scenario.
+   add a Jira `@allure.link` on at least one scenario. (`layer=E2E` + `severity` are auto-derived
+   from the tags by `conftest.py` — don't set them by hand.)
 
 ## Step 5: Verify
 

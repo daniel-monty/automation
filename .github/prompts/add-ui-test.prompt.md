@@ -43,6 +43,7 @@ client), and the ARIA-snapshot target. Get agreement before writing.
    Reserve `to_have_screenshot()` for genuine visual drift on pages that matter.
 4. **Failure artifacts** — ensure screenshot + trace attach to Allure on failure (suite fixture).
 5. **Tags + Allure** — `@ui` + `@critical`/`@smoke`; `epic/feature/story`; Jira `@allure.link`.
+   (`layer=E2E` + `severity` are auto-derived from the tags by `conftest.py`.)
 
 ## Step 5: Verify
 

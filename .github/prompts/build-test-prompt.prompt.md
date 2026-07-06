@@ -57,7 +57,8 @@ path/param/response field is unknown, list it under **Confirm** rather than gues
 
 - Resource + a `<Resource>Client` in `tests/support/clients/` with typed query/body params.
 - A Pydantic model + Polyfactory factory if the resource has a request body.
-- Allure `epic / feature / story` + the layer tag (`@api` / `@ui` / `@contract`).
+- Allure `epic / feature / story` + the layer tag (`@api` / `@ui` / `@contract`). (`layer=E2E` +
+  `severity` are auto-derived from the tags by `conftest.py` — no need to set them.)
 
 ## Step 6: Output
 
