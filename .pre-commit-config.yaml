@@ -8,11 +8,27 @@ repos:
         args: [--fix]
       - id: ruff-format   # format
 
+  # mypy runs in mirrors-mypy's isolated venv, seeded via additional_dependencies (this repo
+  # can't be `pip install .`-ed into it: setuptools' flat-layout auto-discovery trips over
+  # stray top-level dirs like `allure/` and `node_modules/`). Keep this list in sync with
+  # `[project.dependencies]` in pyproject.toml — a stale/incomplete list here is what
+  # previously caused spurious `allure.*` "Module has no attribute" / "untyped-decorator"
+  # errors (allure-pytest-bdd wasn't listed). A `language: system` hook was tried too, but
+  # git clients that don't inherit an activated `.venv` shell (e.g. VS Code's Source Control
+  # panel) can't find `mypy` on PATH — the isolated venv avoids that dependency entirely.
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v2.1.0
     hooks:
       - id: mypy
         additional_dependencies:
-          - pydantic
-          - pydantic-settings
+          - pytest>=8.3
+          - pytest-bdd>=8.1.0
+          - pytest-playwright>=0.8.0
+          - playwright>=1.60.0
+          - httpx>=0.28.1
+          - schemathesis>=4.21.0
+          - allure-pytest-bdd>=2.16.0
+          - polyfactory>=3.3.0
+          - pydantic>=2.13.0
+          - pydantic-settings>=2.14.0
         args: [--config-file=pyproject.toml]
