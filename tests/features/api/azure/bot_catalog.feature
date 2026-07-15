@@ -1,4 +1,4 @@
-@api
+@api @azure
 Feature: Azure bot catalog
   As an authenticated user
   I want to list the Azure bot catalog

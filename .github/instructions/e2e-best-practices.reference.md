@@ -77,12 +77,13 @@ def assert_resource_listed(response: httpx.Response, name: str) -> None:
     assert name in names, f"'{name}' not found in {names}"
 ```
 
-## 5. API feature (`tests/features/api/resource_lifecycle.feature`)
+## 5. API feature (`tests/features/api/<azure|aws>/resource_lifecycle.feature`)
 
-Declarative. No mechanics. Tags drive run selection + Allure grouping.
+Declarative. No mechanics. Tags drive run selection + Allure grouping. Pick the cloud
+subdirectory (`azure` or `aws`) matching the journey — never mix providers in one file.
 
 ```gherkin
-@api @regression
+@api @azure @regression
 Feature: Resource lifecycle
   As a subscribed user
   I want to manage resources via the API
@@ -101,14 +102,18 @@ Feature: Resource lifecycle
     Then the request is rejected as invalid
 ```
 
-## 6. API step defs (`tests/step_defs/api/test_resource_lifecycle.py`)
+## 6. API step defs (`tests/step_defs/api/<azure|aws>/test_resource_lifecycle.py`)
 
 Thin glue: orchestrate the domain layer; no logic/HTTP/asserts of your own beyond calling
-domain assertions. `pytest-bdd` binds the feature here.
+domain assertions. `pytest-bdd` binds the feature here. Mirror the same `azure`/`aws`
+subdirectory as the feature file.
 
 ```python
 from __future__ import annotations
 
+from typing import Any
+
+import allure
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -117,7 +122,17 @@ from tests.support.assertions import assert_status
 from tests.support.clients.resource_client import ResourceClient
 from tests.support.factories import ResourceFactory
 
-scenarios("../../features/api/resource_lifecycle.feature")
+scenarios("api/azure/resource_lifecycle.feature")
+
+# Allure grouping — see "Allure grouping" section below for why pytestmark (not
+# allure.dynamic.*) is required.
+_allure: Any = allure
+pytestmark = [
+    _allure.label("cloud", "Azure"),
+    _allure.epic("Resources"),
+    _allure.feature("Resource Lifecycle"),
+    _allure.story("Create and retrieve"),
+]
 
 
 @pytest.fixture
@@ -182,10 +197,10 @@ class ResourcePage(BasePage):
         expect(self.heading).to_be_visible()
 ```
 
-## 8. UI feature (`tests/features/ui/resource_dashboard.feature`)
+## 8. UI feature (`tests/features/ui/<azure|aws>/resource_dashboard.feature`)
 
 ```gherkin
-@ui @critical
+@ui @azure @critical
 Feature: Resource dashboard renders real data
 
   @smoke
@@ -195,10 +210,11 @@ Feature: Resource dashboard renders real data
     Then the dashboard structure matches the expected layout
 ```
 
-## 9. UI step defs (`tests/step_defs/ui/test_resource_dashboard.py`)
+## 9. UI step defs (`tests/step_defs/ui/<azure|aws>/test_resource_dashboard.py`)
 
 State is **seeded via the API** (arrange-via-API); the browser only drives the user journey.
-Structural assertion uses an **ARIA snapshot**, not brittle CSS.
+Structural assertion uses an **ARIA snapshot**, not brittle CSS. Mirror the same `azure`/`aws`
+subdirectory as the feature file, and set the `cloud` Allure label as in §6.
 
 ```python
 from __future__ import annotations
@@ -213,7 +229,7 @@ from tests.support.config import Settings
 from tests.support.factories import ResourceFactory
 from tests.support.pages.resource_page import ResourcePage
 
-scenarios("../../features/ui/resource_dashboard.feature")
+scenarios("ui/azure/resource_dashboard.feature")
 
 
 @given(parsers.parse('a resource "{name}" exists for me'))
@@ -282,6 +298,7 @@ import allure
 # allure's decorators are untyped — alias via Any to satisfy mypy strict.
 _allure: Any = allure
 pytestmark = [
+    _allure.label("cloud", "Azure"),  # or "AWS" — matches the feature's azure/aws subdir
     _allure.epic("Assessments"),
     _allure.feature("WAFR Workloads"),
     _allure.story("List"),
@@ -290,4 +307,6 @@ pytestmark = [
 ```
 
 The Gherkin `Feature:` name already maps to an Allure feature automatically; the `pytestmark`
-labels add the leadership epic/feature/story grouping + the requirement link.
+labels add the leadership `cloud`/epic/feature/story grouping + the requirement link. The
+Allure report (`allure/allurerc.mjs`) groups by `["cloud", "epic", "feature", "story"]`, so the
+`cloud` label must be set on every module or scenarios fall into an "Unknown" bucket.

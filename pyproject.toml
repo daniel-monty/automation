@@ -44,6 +44,8 @@ markers = [
     "ui: UI E2E (Playwright) — thin, critical, browser-only journeys",
     "regression: full regression set; nightly only",
     "contract: schemathesis contract/fuzz; nightly only",
+    "azure: Azure cloud provider journeys",
+    "aws: AWS cloud provider journeys",
 ]
 
 # ---------------------------------------------------------------------------

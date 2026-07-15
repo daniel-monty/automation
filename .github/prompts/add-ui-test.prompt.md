@@ -31,24 +31,28 @@ journey. Prefer the accessibility tree over CSS.
 
 ## Step 3: Plan and confirm
 
-State: the page object(s), the `.feature`, how state is **seeded via API** (which factory /
-client), and the ARIA-snapshot target. Get agreement before writing.
+State: the page object(s), the `.feature` (and its cloud provider — Azure or AWS — which fixes
+its subdir under `tests/features/ui/<azure|aws>/` and `tests/step_defs/ui/<azure|aws>/`), how
+state is **seeded via API** (which factory / client), and the ARIA-snapshot target. Get
+agreement before writing.
 
 ## Step 4: Implement (reference templates §7–9)
 
 1. **Page object** (§7) — role-based locators only; small and composable; extends `BasePage`.
-2. **Feature** (§8) — declarative; `Given` seeds state **via API**, `When` drives the browser.
+2. **Feature** (§8) — declarative; `Given` seeds state **via API**, `When` drives the browser;
+   tag with `@ui` + `@azure`/`@aws`.
 3. **Step defs** (§9) — thin glue; the `Given` calls the API client/factory (arrange-via-API);
    the `Then` uses `expect(...).to_match_aria_snapshot(...)` for structure (not brittle CSS).
    Reserve `to_have_screenshot()` for genuine visual drift on pages that matter.
 4. **Failure artifacts** — ensure screenshot + trace attach to Allure on failure (suite fixture).
-5. **Tags + Allure** — `@ui` + `@critical`/`@smoke`; `epic/feature/story`; Jira `@allure.link`.
+5. **Tags + Allure** — `@ui` + `@azure`/`@aws` + `@critical`/`@smoke`; `cloud/epic/feature/story`;
+   Jira `@allure.link`.
 
 ## Step 5: Verify
 
 ```bash
 ruff check . && ruff format --check . && mypy
-pytest tests/step_defs/ui/<new_test>.py --collect-only
+pytest tests/step_defs/ui/<azure|aws>/<new_test>.py --collect-only
 ```
 Run with dev1 creds if available; otherwise note the gap. Locator self-heal must log a loud
 warning — never silent. 100% green required to close.

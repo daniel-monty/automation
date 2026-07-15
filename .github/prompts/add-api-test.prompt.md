@@ -25,6 +25,12 @@ Input: `${input:journey:Describe the journey, or paste a Jira key}`.
 From the journey, name the resource(s) and the endpoint(s) involved. If the path/payload is
 unknown, check the OpenAPI spec (`E2E_OPENAPI_SPEC`) or ask — **never invent endpoints**.
 
+Also decide the **cloud provider** (Azure or AWS) the endpoint belongs to — this fixes which
+subdirectory the feature and step defs go in (`tests/features/api/<azure|aws>/`,
+`tests/step_defs/api/<azure|aws>/`). If a journey genuinely spans both providers, split it into
+one feature file per provider (see `wafr_workloads.feature` vs `war_workloads.feature`) rather
+than mixing `@azure`/`@aws` scenarios in one file.
+
 ## Step 2b: Confirm the response shape (don't guess)
 
 Before writing any body assertions, confirm the **actual** response structure — the envelope key
@@ -37,9 +43,10 @@ rather than asserting against ambient data.
 
 ## Step 3: Plan and confirm
 
-State: target resource, files to add/extend, scenarios (happy + at least one negative), tags, and
-**the confirmed response shape + how the happy path avoids a vacuous pass** (seed + assert
-presence, or assert the collection is non-empty). Get agreement before writing.
+State: target resource, cloud provider (Azure/AWS) and its subdir, files to add/extend,
+scenarios (happy + at least one negative), tags (incl. `@azure`/`@aws`), and **the confirmed
+response shape + how the happy path avoids a vacuous pass** (seed + assert presence, or assert
+the collection is non-empty). Get agreement before writing.
 
 ## Step 4: Implement (reuse before adding)
 
@@ -49,14 +56,15 @@ In dependency order, following the reference templates:
 3. **Feature** (§5) — declarative Gherkin; happy path + ≥1 negative; `Background` for auth.
 4. **Step defs** (§6) — thin glue; orchestrate the client; `parsers.parse`; call domain assertions.
 5. **Assertions** (§4) — reuse `assert_status`; add domain assertions as Allure steps if needed.
-6. **Tags + Allure** — `@api` + `@smoke`/`@critical`/`@regression`; `epic/feature/story`;
-   add a Jira `@allure.link` on at least one scenario.
+6. **Tags + Allure** — `@api` + `@azure`/`@aws` + `@smoke`/`@critical`/`@regression`;
+   `cloud/epic/feature/story` (see reference §"Allure grouping"); add a Jira `@allure.link` on
+   at least one scenario.
 
 ## Step 5: Verify
 
 ```bash
 ruff check . && ruff format --check . && mypy
-pytest tests/step_defs/api/<new_test>.py --collect-only
+pytest tests/step_defs/api/<azure|aws>/<new_test>.py --collect-only
 ```
 Run the test if creds for dev1 are configured; otherwise note the gap. 100% green required to close.
 

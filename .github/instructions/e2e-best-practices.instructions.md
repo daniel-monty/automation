@@ -31,11 +31,23 @@ an **API** test. Default new tests to API.
 and interaction only. (`context.request` is permissible inside a UI test solely for a
 cookie-bound arrange step, but prefer the httpx client objects there too.)
 
+## Cloud provider subdirectories
+
+Every journey belongs to exactly one cloud provider. `.feature` files live under
+`tests/features/<api|ui>/<azure|aws>/`; step defs mirror it under
+`tests/step_defs/<api|ui>/<azure|aws>/`. Before writing a new test, decide Azure or AWS from
+the endpoint/journey and put both files in the matching subdir — never mix providers in one
+feature file (split it if a journey turns out to cover both, as with WAFR/Azure vs WAR/AWS
+workloads).
+
 ## Tags (one scheme, three jobs)
 
-`@smoke @critical @api @ui @regression @contract` + Allure `epic/feature/story`.
+`@smoke @critical @api @ui @azure @aws @regression @contract` + Allure `cloud/epic/feature/story`.
 - Gate (PR): `@smoke`/`@critical`. Nightly: `@regression`/`@contract`.
-- Tag the `.feature` declaratively; every scenario gets a layer tag (`@api` or `@ui`).
+- Tag the `.feature` declaratively; every scenario gets a layer tag (`@api` or `@ui`) and a
+  provider tag (`@azure` or `@aws`) at the `Feature:` line.
+- Set the Allure `cloud` label (`Azure`/`AWS`) via `pytestmark` alongside `epic/feature/story`
+  (see `e2e-best-practices.reference.md`) so the report groups by cloud provider first.
 
 ## Data — arrange-via-API only
 
@@ -85,4 +97,5 @@ Playwright `APIRequestContext` for API tests (use httpx) ·
 silent locator self-heal (every heal must log a loud warning) ·
 guessed response shapes / failure-hiding fallbacks (`return []` on an unknown shape) ·
 collection assertions that pass on an empty list · asserting query/filter params as response
-fields · unused models/factories/helpers (dead code).
+fields · unused models/factories/helpers (dead code) · a `.feature` file mixing `@azure` and
+`@aws` scenarios (split by provider subdir instead).

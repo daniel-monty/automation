@@ -27,13 +27,13 @@ export default {
     ],
   },
 
-  // Group the report tree by epic/feature/story (stakeholder-readable) instead of the
-  // file path (which otherwise renders as "tests > features > api > ...").
+  // Group the report tree by cloud/epic/feature/story (stakeholder-readable) instead of the
+  // file path (which otherwise renders as "tests > features > api > azure > ...").
   plugins: {
     awesome: {
       options: {
         reportName: "MontyCloud E2E",
-        groupBy: ["epic", "feature", "story"],
+        groupBy: ["cloud", "epic", "feature", "story"],
         appendTitlePath: false,
         singleFile: true,
       },

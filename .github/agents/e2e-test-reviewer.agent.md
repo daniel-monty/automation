@@ -29,8 +29,10 @@ Read [`AGENTS.md`](../../AGENTS.md) and
 4. **Reuse** — flag copy-pasted step defs, duplicated client/page logic, god-objects,
    kitchen-sink clients, shared mutable state.
 5. **Data & config** — flag hardcoded data/URLs/magic strings, secrets in code, `sleep`/manual waits.
-6. **Tags & report** — every scenario has a layer tag + run-selection tag; Allure
-   `epic/feature/story` present; declarative Gherkin (no mechanics).
+6. **Tags & report** — every scenario has a layer tag (`@api`/`@ui`) + a cloud-provider tag
+   (`@azure`/`@aws`) + run-selection tag; Allure `cloud/epic/feature/story` present; feature and
+   step defs live under the matching `<azure|aws>` subdir (flag mixed-provider feature files);
+   declarative Gherkin (no mechanics).
 7. **Quality gates** — run and report:
    ```bash
    ruff check . ; ruff format --check . ; mypy

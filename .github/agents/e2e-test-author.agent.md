@@ -35,8 +35,11 @@ You author end-to-end tests for the MontyCloud E2E suite. The `/add-api-test`,
 - **Reuse before adding:** check `tests/support/` for an existing client object, page object,
   factory, or assertion before creating a new one. No copy-pasted step defs — use
   `parsers.parse` + `Background`.
-- **Tag every scenario** with a layer tag (`@api`/`@ui`) + run-selection tags
-  (`@smoke`/`@critical`/`@regression`/`@contract`) and add Allure `epic/feature/story`.
+- **Tag every scenario** with a layer tag (`@api`/`@ui`) + a cloud-provider tag (`@azure`/`@aws`)
+  + run-selection tags (`@smoke`/`@critical`/`@regression`/`@contract`) and add Allure
+  `cloud/epic/feature/story`. Place the feature/step defs under the matching
+  `tests/features/<api|ui>/<azure|aws>/` and `tests/step_defs/<api|ui>/<azure|aws>/` subdir —
+  never mix providers in one feature file.
 - **Assertions** are reusable domain assertions wrapped as Allure steps.
 - **Confirm the response shape before asserting** — read the API's response schema (app codebase /
   OpenAPI spec) or run the call once. Never guess envelope keys or field names; never assert

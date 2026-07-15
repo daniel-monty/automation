@@ -24,13 +24,14 @@ from tests.support.assertions import (
 )
 from tests.support.clients.bot_catalog_client import BotCatalogClient
 
-scenarios("api/bot_catalog.feature")
+scenarios("api/azure/bot_catalog.feature")
 
 # Allure grouping. Use markers (not allure.dynamic.* — that is unsupported by the
 # allure-pytest-bdd adapter during fixture setup and raises AttributeError). pytestmark
 # applies these labels to every scenario bound in this module.
 _allure: Any = allure  # allure's decorators are untyped; access via Any to satisfy mypy strict
 pytestmark = [
+    _allure.label("cloud", "Azure"),
     _allure.epic("Day2 Bots"),
     _allure.feature("Azure Bot Catalog"),
     _allure.story("Azure bot catalog activation and targets"),
