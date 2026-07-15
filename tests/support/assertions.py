@@ -216,3 +216,83 @@ def assert_at_most_n_war_workloads(response: httpx.Response, limit: int) -> None
     """Assert the response contains no more than *limit* workloads."""
     items = _war_workload_items(response)
     assert len(items) <= limit, f"expected at most {limit} workloads, got {len(items)}"
+
+
+# ---------------------------------------------------------------------------
+# Azure security bot assertions. Response shapes confirmed against the live Pydantic models
+# (api/domains/bots/bots_azure/.../security_bot/{response,request}_schemas):
+#   activate/deactivate: {"BotConfigurationId", "BotMasterId", "Status", "FailedFindingsCount",
+#                         "LastScanAt", "Targets": [{"SubscriptionId", "SubscriptionName",
+#                         "ResourceGroups"}], "CreatedAt", "UpdatedAt", ["Message"]}
+#   findings:            {"Total", "Page", "PageSize",
+#                         "Findings": [{"FindingId", "CheckCode", "SubscriptionId", "Status",
+#                         "IsSuppressed", ...}]}
+#   suppress:            {"Message", "SuppressedCount"}
+# ---------------------------------------------------------------------------
+
+
+@allure.step("Security bot is INACTIVE")
+def assert_security_bot_inactive(response: httpx.Response) -> None:
+    """Assert the deactivate response is INACTIVE and carries a Message."""
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("Status") in ("INACTIVE", "NOT_CONFIGURED"), (
+        f"expected Status 'INACTIVE' or 'NOT_CONFIGURED', got: {body!r}"
+    )
+    assert body.get("Message"), f"expected a non-empty 'Message', got: {body!r}"
+
+
+def _findings_items(response: httpx.Response) -> list[dict[str, Any]]:
+    """Return the 'Findings' list, failing loudly if the envelope is wrong."""
+    body: Any = response.json()
+    assert isinstance(body, dict) and "Total" in body, (
+        f"expected a paginated object with a 'Total', got: {body!r}"
+    )
+    findings = body.get("Findings")
+    assert isinstance(findings, list), (
+        f"expected a 'Findings' list in the response, got keys {list(body.keys())}"
+    )
+    return cast(list[dict[str, Any]], findings)
+
+
+@allure.step("Response is a well-formed findings page")
+def assert_findings_page_schema(response: httpx.Response) -> list[dict[str, Any]]:
+    """Assert the body is the documented paginated findings envelope and return the items."""
+    return _findings_items(response)
+
+
+def find_first_unsuppressed_finding(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the first not-yet-suppressed finding, or None if there isn't one."""
+    return next((f for f in items if not f.get("IsSuppressed")), None)
+
+
+@allure.step("Suppressed finding count is {expected}")
+def assert_suppressed_count(response: httpx.Response, expected: int) -> None:
+    """Assert the suppress response's SuppressedCount matches *expected*."""
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("SuppressedCount") == expected, (
+        f"expected SuppressedCount {expected}, got: {body!r}"
+    )
+
+
+@allure.step("Finding {finding_id} is suppressed")
+def assert_finding_is_suppressed(response: httpx.Response, finding_id: str) -> None:
+    """Assert the given finding appears in the (re-fetched) findings page as suppressed."""
+    items = _findings_items(response)
+    assert items, "expected a non-empty findings list to check suppression"
+    matches = [f for f in items if f.get("FindingId") == finding_id]
+    assert matches, f"finding {finding_id} not found in re-fetched findings"
+    assert matches[0].get("IsSuppressed") is True, f"expected suppressed, got: {matches[0]!r}"
+
+
+@allure.step("Deactivation response includes a status message")
+def assert_deactivation_message_present(response: httpx.Response) -> None:
+    """Assert the deactivate response carries a non-empty Message (contract-safe subset).
+
+    Used for the selected-scope case, where the resulting Status depends on whether other
+    subscriptions remain active — not asserted here to avoid guessing an ambiguous contract.
+    """
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("Message"), f"expected a non-empty 'Message', got: {body!r}"

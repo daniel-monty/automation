@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Azure Security Bot — E2E API Automation Story</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 980px; margin: 2rem auto; padding: 0 1.5rem; color: #1a1a1a; line-height: 1.55; }
+  h1 { border-bottom: 3px solid #0969da; padding-bottom: .3rem; }
+  h2 { margin-top: 2.2rem; border-bottom: 1px solid #d0d7de; padding-bottom: .3rem; color: #0969da; }
+  h3 { margin-top: 1.6rem; color: #24292f; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  tr:nth-child(even) { background: #fbfbfb; }
+  code { background: #f6f8fa; padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; }
+  pre code { background: none; padding: 0; }
+  blockquote { border-left: 4px solid #d0d7de; margin-left: 0; padding: 0.2rem 1rem; color: #57606a; background:#f6f8fa;}
+  hr { border: none; border-top: 1px solid #d0d7de; margin: 2rem 0; }
+  .badge { display:inline-block; background:#fff8c5; border:1px solid #d4a72c; color:#7d5a00;
+            padding:2px 8px; border-radius:12px; font-size:0.8rem; font-weight:600; margin-bottom:1rem;}
+</style>
+</head>
+<body>
+<div class="badge">PLANNING ARTIFACT — NOT TEST CODE</div>
+<h1>Azure Security Bot — E2E API Automation Story (Planning Artifact)</h1>
+<blockquote>
+<p><strong>Status: planning only — no test code included.</strong> This document defines the automatable
+end-to-end journeys for the Azure Security Bot feature as a story to be reviewed before any
+<code>pytest</code> implementation begins, following the conventions already established in this folder
+(<code>api_calls.py</code>, <code>url_paths.py</code>, <code>users.py</code>, <code>conftest.py</code>, <code>test_api_calls.py</code>).</p>
+<p>Sources: PRODUCT-1519 (PRD extraction), MCPLAT-30866 (user stories), and direct verification of
+<code>api/domains/bots/bots_azure/</code> + <code>app/app/src/config/service/index.js</code>. See
+<code>AZURE_SECURITY_BOT_CONSOLIDATED_CONTEXT.md</code> (session artifact) for full source detail.</p>
+</blockquote>
+<hr>
+<h2>1. Conventions this story follows</h2>
+<ul>
+<li><p><strong>Base URL</strong>: tests run against <code>--base_url</code> (pytest option in <code>conftest.py</code>), same as existing
+canary tests — e.g. <code>https://&lt;stage&gt;-api.montycloud.com/v1</code> becomes
+<code>https://&lt;stage&gt;-api.montycloud.com</code> + real Azure paths below (Azure bot paths are <strong>not</strong> under
+the legacy <code>/v1</code> EC2-style prefix; they are their own API-Gateway custom-domain base path <code>bots</code>).</p>
+</li>
+<li><p><strong><code>url_paths.py</code> additions</strong> (new dict entries, one flow-call each, mirroring the existing flat
+<code>&quot;name&quot;: &quot;/path&quot;</code> style):</p>
+<pre><code class="language-python">url_paths.update({
+    &quot;azure_bot_catalog&quot;: &quot;/bots/azure/api/v1/bot-catalog&quot;,
+    &quot;azure_security_manifest&quot;: &quot;/bots/azure/api/v1/security/manifest&quot;,
+    &quot;azure_security_subscriptions&quot;: &quot;/bots/azure/api/v1/security/subscriptions&quot;,
+    &quot;azure_security_config&quot;: &quot;/bots/azure/api/v1/security&quot;,              # POST/PUT/DELETE
+    &quot;azure_security_insights&quot;: &quot;/bots/azure/api/v1/security/insights&quot;,
+    &quot;azure_security_findings&quot;: &quot;/bots/azure/api/v1/security/findings&quot;,
+    &quot;azure_security_findings_suppress&quot;: &quot;/bots/azure/api/v1/security/findings/suppress&quot;,
+    &quot;azure_security_findings_export&quot;: &quot;/bots/azure/api/v1/security/findings/export&quot;,
+})
+</code></pre>
+<p>⚠️ Use these real paths, <strong>not</strong> the PRD-documented <code>/bots/azure</code> / <code>/bots/azure/security</code>
+(missing <code>/api/v1</code>, and catalog is <code>/bot-catalog</code> not the bare domain root) — see gap #1/#2 below.</p>
+</li>
+<li><p><strong><code>api_calls.py</code> additions</strong>: one method per endpoint on <code>api_call_wrapper</code>, same shape as
+existing methods (<code>self.base_url + url_paths[...]</code>, <code>Authorization: token</code> header, <code>json.loads</code>
+the response) — e.g. <code>activate_azure_security_bot(self, sign_in_response, targets)</code>,
+<code>deactivate_azure_security_bot(self, sign_in_response, scope, targets)</code>,
+<code>suppress_azure_security_findings(self, sign_in_response, finding_ids, justification=None)</code>.</p>
+</li>
+<li><p><strong><code>users.py</code></strong>: no new AWS-session logic needed for Azure flows (no <code>boto3</code> Azure SDK calls in
+this domain&#39;s contract) — Azure flow methods can live directly on <code>api_call_wrapper</code>/
+<code>MontyCloudUsers</code> using only <code>requests</code>, same as <code>sign_in</code>/<code>list_regions</code>.</p>
+</li>
+<li><p><strong><code>test_input.yaml</code></strong>: add an <code>azure_user_1</code> (or reuse <code>user_1</code>) block with
+<code>azure_subscription_id</code>, <code>azure_subscription_name</code>, <code>azure_resource_groups: []</code> (empty = all RGs).</p>
+</li>
+<li><p><strong>Fixtures</strong>: reuse <code>user_object</code> / <code>sign_in_response</code> from <code>test_api_calls.py</code>; add a
+<code>retry</code>-decorated poll helper (same pattern as <code>check_instance_status</code>) for scan-completion and
+offboarding-cleanup polling — both are async/event-driven, not synchronous API responses.</p>
+</li>
+</ul>
+<hr>
+<h2>2. Flow 1 — Connect subscription → Activate bot → Trigger scan → Poll scan status</h2>
+<p><strong>Setup</strong>: An Azure subscription must already be connected at the account/customer level
+(<code>customeraccount</code> domain — <code>AZURE_PENDING_SUBSCRIPTIONS = /customeraccount/azure/api/v1/subscriptions/pending</code>).
+This is <strong>out of scope for the bots domain</strong> and is a test-data precondition, not part of this
+story&#39;s API sequence — assume a pre-provisioned test tenant with ≥1 connected, healthy
+(<code>ConnectionStatus != &quot;connection_error&quot;</code>) Azure subscription.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Call</th>
+<th>Method + Path</th>
+<th>Expected status</th>
+<th>Assertions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Sign in</td>
+<td><code>POST /auth/signin</code></td>
+<td>200</td>
+<td><code>Data.Token</code> present</td>
+</tr>
+<tr>
+<td>2</td>
+<td>List subscriptions</td>
+<td><code>GET /bots/azure/api/v1/security/subscriptions</code></td>
+<td>200</td>
+<td>response validates against <code>SecurityBotSubscriptionsResponse</code> (§7.4); <code>Subscriptions</code> non-empty; pick first with <code>ConnectionError == false</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Activate bot</td>
+<td><code>POST /bots/azure/api/v1/security</code> body <code>{&quot;Targets&quot;:[{&quot;SubscriptionId&quot;,&quot;SubscriptionName&quot;,&quot;ResourceGroups&quot;:[&quot;&lt;rg-name-1&gt;&quot;, ...]}]}</code> — <code>ResourceGroups</code> must be non-empty</td>
+<td>200 (409 if already active — treat as pre-existing state, not a failure, and continue); 400 if <code>ResourceGroups</code> is omitted/empty</td>
+<td>response validates against <code>SecurityBotConfigResponse</code> (§7.2); <code>Status == &quot;ACTIVE&quot;</code>; <code>Targets</code> echoes the subscription sent</td>
+</tr>
+<tr>
+<td>4</td>
+<td>(implicit) scan trigger</td>
+<td>none — <code>POST .../security</code> success publishes <code>bots.azureSecurityBotActivated</code>, consumed via EventBridge → SQS (<code>azure-security-bot-scan</code> queue) → ECS scan task, no direct HTTP trigger exists</td>
+<td>n/a</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Poll scan status</td>
+<td><code>GET /bots/azure/api/v1/bot-catalog</code> (repeat with backoff, e.g. <code>retry(wait_exponential_multiplier=2000, stop_max_attempt_number=15)</code>, mirroring <code>check_instance_status</code>)</td>
+<td>200</td>
+<td>response validates against <code>AzureBotCatalogResponse</code> (§7.1); poll until matching bot entry&#39;s <code>Config.LastScanAt</code> is non-null and <code>Config.Status == &quot;ACTIVE&quot;</code></td>
+</tr>
+</tbody></table>
+<p><strong>Teardown</strong>: none required here — bot stays active for Flow 2/3; final deactivation is Flow 4.</p>
+<hr>
+<h2>3. Flow 2 — Fetch findings → Suppress a finding</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Call</th>
+<th>Method + Path</th>
+<th>Expected status</th>
+<th>Assertions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Fetch findings</td>
+<td><code>GET /bots/azure/api/v1/security/findings?page=1&amp;pageSize=25&amp;sortBy=risk_level_numeric&amp;sortOrder=asc&amp;status=Failed</code></td>
+<td>200</td>
+<td>response validates against <code>SecurityBotFindingsPageResponse</code> (§7.6); <code>Total &gt;= 0</code>; <code>Findings</code> is a list; each row has <code>FindingId</code>, <code>IsSuppressed == false</code> for at least one row (skip suppress step if <code>Total == 0</code>, log as inconclusive, don&#39;t fail the run)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Suppress finding</td>
+<td><code>PATCH /bots/azure/api/v1/security/findings/suppress</code> body <code>{&quot;FindingIds&quot;: [&quot;&lt;FindingId&gt;&quot;]}</code></td>
+<td>200</td>
+<td>response validates against <code>SuppressSecurityBotFindingsResponse</code> (§7.7); <code>SuppressedCount == 1</code>; <code>Message</code> present</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Re-fetch findings</td>
+<td><code>GET .../findings?...&amp;resourceId=&lt;same filter&gt;</code></td>
+<td>200</td>
+<td>the suppressed <code>FindingId</code> now has <code>IsSuppressed == true</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Re-suppress (idempotency check)</td>
+<td><code>PATCH .../findings/suppress</code> same <code>FindingIds</code></td>
+<td>200</td>
+<td><code>SuppressedCount == 0</code> (already-suppressed findings are silently skipped per backend contract)</td>
+</tr>
+</tbody></table>
+<p><strong>Gap flagged</strong>: the documented contract (<code>POST .../findings/{findingId}/suppress</code> with
+<code>{&quot;Justification&quot;: &quot;...&quot;}</code>) does <strong>not</strong> exist. The only real endpoint is the bulk <code>PATCH .../findings/suppress</code> with <code>{&quot;FindingIds&quot;: [...]}</code> (optional <code>Justification</code>). Automate against
+the bulk endpoint.</p>
+<hr>
+<h2>4. Flow 3 — Schedule a report</h2>
+<p>Reuses the generic report-schedule endpoint; Azure-specific inputs are <code>platformReportType</code> and
+<code>Filters</code>.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Call</th>
+<th>Method + Path</th>
+<th>Expected status</th>
+<th>Assertions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Get filter options (subscriptions)</td>
+<td><code>GET /bots/azure/api/v1/security/insights/filter-options/subscriptions?Limit=20</code></td>
+<td>200</td>
+<td>response validates against <code>SecurityBotFilterOptionsResponse</code> (§7.5); <code>Values</code> non-empty (skip/inconclusive if empty, no scan data yet)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Get filter options (regions, resource-groups)</td>
+<td><code>GET .../insights/filter-options/{regions,resource-groups}</code></td>
+<td>200</td>
+<td>response validates against <code>SecurityBotFilterOptionsResponse</code> (§7.5); <code>Values</code> list present (may be empty)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Create schedule</td>
+<td><code>POST /reports/schedule</code> body includes <code>platformReportType: &quot;AzureSecurityBotReport&quot;</code>, <code>Filters: {CheckIds, Severity, Subscriptions, ResourceGroups, Regions}</code></td>
+<td>200/201 (<strong>pending — PRD-9 §5.8 flags this backend contract as unconfirmed</strong>; assert whatever the actual generic schedule endpoint returns for a new schedule, likely a <code>ScheduleId</code>)</td>
+<td>response contains a schedule identifier; <code>ReportType</code>/<code>platformReportType</code> echoes <code>AzureSecurityBotReport</code></td>
+</tr>
+</tbody></table>
+<p><strong>Setup</strong>: at least one recipient email in test data (<code>test_input.yaml</code>).
+<strong>Teardown</strong>: delete the created schedule via the existing generic <code>delete_schedule_task</code>-style
+endpoint (reuse <code>url_paths[&#39;delete_schedule_task&#39;]</code> pattern) so repeated runs don&#39;t accumulate
+schedules.</p>
+<p><strong>Gap flagged</strong>: PRD-9 explicitly marks the backend schedule contract for Azure as an open question
+— confirm the real request/response shape against a live environment before implementing this flow;
+do not assume the shape above is final.</p>
+<hr>
+<h2>5. Flow 4 — Deactivate bot</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Call</th>
+<th>Method + Path</th>
+<th>Expected status</th>
+<th>Assertions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Deactivate (all)</td>
+<td><code>DELETE /bots/azure/api/v1/security</code> body <code>{&quot;DeactivationScope&quot;: &quot;all&quot;, &quot;Targets&quot;: []}</code> (body required even on DELETE)</td>
+<td>200</td>
+<td>response validates against <code>DeactivateSecurityBotConfigResponse</code> (§7.3); <code>Status == &quot;INACTIVE&quot;</code>; <code>Message</code> present</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Confirm via catalog</td>
+<td><code>GET /bots/azure/api/v1/bot-catalog</code></td>
+<td>200</td>
+<td>response validates against <code>AzureBotCatalogResponse</code> (§7.1); matching bot&#39;s <code>Config</code> is <code>null</code>/absent or <code>Config.Status == &quot;NOT_CONFIGURED&quot;</code>/<code>&quot;INACTIVE&quot;</code></td>
+</tr>
+</tbody></table>
+<p><strong>Alternate case — selected deactivation</strong> (if the tenant has ≥2 subscriptions in scope): same call
+with <code>{&quot;DeactivationScope&quot;: &quot;selected&quot;, &quot;Targets&quot;: [{&quot;SubscriptionId&quot;: &quot;...&quot;, &quot;ResourceGroups&quot;: []}]}</code>
+(non-empty <code>Targets</code> required); assert the remaining scope in <code>Config.Targets</code> excludes the
+deactivated subscription and the bot stays <code>ACTIVE</code> if other subscriptions remain.</p>
+<hr>
+<h2>6. Flow 5 — Cleanup on account deletion (async, event-driven — not a direct API call)</h2>
+<blockquote>
+<p><strong>Status: feature file to be added; implementation and execution skipped for now.</strong> Track this
+flow with a placeholder <code>.feature</code>/story file so it isn&#39;t lost, but do not implement or run it as
+part of the initial automation pass — see rationale below.</p>
+</blockquote>
+<p>There is <strong>no synchronous &quot;delete account&quot; API endpoint</strong> in this domain. Cleanup is triggered by
+EventBridge events (<code>customeraccount.azureOffboardingSuccess</code>,
+<code>customeraccount.azureDay2OnlyAccountDisconnectionCompleted</code>) consumed by
+<code>bots_azuresecuritybot_cleanup</code> / <code>process_azure_subscription_offboarded</code> Lambdas, which hard-delete
+<code>azure_security_bot_findings</code>/<code>bot_scope</code> rows and deactivate any orphaned <code>BotConfiguration</code>.</p>
+<p>Automating this flow requires either:</p>
+<ul>
+<li><strong>(a)</strong> a test harness that can publish the offboarding event directly to the relevant EventBridge
+bus (out of scope for <code>pytest</code>/<code>requests</code>-only API tests — would need <code>boto3</code> <code>events.put_events</code>,
+similar to how <code>users.py</code> already uses <code>boto3</code> sessions for AWS EC2 canaries), or</li>
+<li><strong>(b)</strong> driving the real account-offboarding flow through the <code>customeraccount</code> domain&#39;s own API
+(outside this story&#39;s scope) and then polling this domain&#39;s endpoints for the side effect.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Call</th>
+<th>Method + Path</th>
+<th>Expected status</th>
+<th>Assertions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>(setup, outside this domain) trigger account/subscription offboarding</td>
+<td><code>customeraccount</code> domain API or direct <code>boto3 events.put_events</code></td>
+<td>n/a</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Poll catalog</td>
+<td><code>GET /bots/azure/api/v1/bot-catalog</code> (retry/backoff)</td>
+<td>200</td>
+<td>matching bot&#39;s <code>Config</code> becomes <code>null</code>/<code>NOT_CONFIGURED</code> within the retry window</td>
+</tr>
+<tr>
+<td>3</td>
+<td>(optional, needs DB access)</td>
+<td>direct query against <code>azure_security_bot_findings</code>/<code>bot_scope</code> tables</td>
+<td>—</td>
+<td>rows for the offboarded <code>account_number</code> are gone — <strong>not achievable via the public API</strong>; document as a DB-level assertion if the test harness has DB access, otherwise assert only via step 2</td>
+</tr>
+</tbody></table>
+<p><strong>Recommendation</strong>: keep this flow as a lower-priority / separate test tier (e.g. a manual or
+<code>boto3</code>-assisted integration test rather than a pure <code>requests</code>-based canary), since it needs either
+event-bus publish rights or a real account-deletion trigger — flag this to the team before
+implementation. <strong>Per current direction: scaffold the feature file only; do not implement or execute
+this flow yet.</strong></p>
+<hr>
+<h2>7. Response &amp; request JSON Schemas (for automated validation)</h2>
+<p>Derived directly from the live Pydantic models in
+<code>api/domains/bots/bots_azure/api/v1/endpoints/{bot_catalog,security_bot}/{response,request}_schemas/</code>
+— <strong>these are ground truth</strong>, not the PRD-drafted shapes. Use with the <code>jsonschema</code> package
+(added to <code>api/api_test/requirements.txt</code>) via <code>jsonschema.validate(instance=response.json(), schema=SCHEMA)</code>
+in each test, alongside the individual field assertions already listed per flow above.</p>
+<p>Suggested convention: add these as a new <code>api/api_test/schemas.py</code> module (one <code>dict</code> constant per
+schema, named to match the Pydantic class) so <code>test_api_calls.py</code> can <code>from .schemas import AZURE_BOT_CATALOG_RESPONSE_SCHEMA</code> etc., mirroring how <code>url_paths.py</code> centralizes endpoint paths.</p>
+<h3>7.1 <code>AzureBotCatalogResponse</code> — <code>GET /bots/azure/api/v1/bot-catalog</code></h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;Bots&quot;],
+  &quot;properties&quot;: {
+    &quot;Bots&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;items&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;required&quot;: [&quot;BotId&quot;, &quot;BotCode&quot;, &quot;BotName&quot;, &quot;BotDescription&quot;, &quot;Status&quot;],
+        &quot;properties&quot;: {
+          &quot;BotId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;BotCode&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;BotName&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;BotDescription&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;PermissionURL&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;CloudProvider&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;Status&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;Metadata&quot;: { &quot;type&quot;: &quot;object&quot; },
+          &quot;Config&quot;: {
+            &quot;oneOf&quot;: [
+              { &quot;type&quot;: &quot;null&quot; },
+              { &quot;$ref&quot;: &quot;#/definitions/SecurityBotConfigResponse&quot; }
+            ]
+          }
+        }
+      }
+    }
+  },
+  &quot;definitions&quot;: {
+    &quot;SecurityBotConfigResponse&quot;: { &quot;$ref&quot;: &quot;#/9.2&quot; }
+  }
+}
+</code></pre>
+<h3>7.2 <code>SecurityBotConfigResponse</code> — <code>POST</code>/<code>PUT /bots/azure/api/v1/security</code> (200)</h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;BotMasterId&quot;, &quot;Status&quot;],
+  &quot;properties&quot;: {
+    &quot;BotConfigurationId&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+    &quot;BotMasterId&quot;: { &quot;type&quot;: &quot;string&quot; },
+    &quot;Status&quot;: { &quot;type&quot;: &quot;string&quot; },
+    &quot;FailedFindingsCount&quot;: { &quot;type&quot;: &quot;integer&quot;, &quot;minimum&quot;: 0 },
+    &quot;LastScanAt&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;], &quot;format&quot;: &quot;date-time&quot; },
+    &quot;Targets&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;items&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;required&quot;: [&quot;SubscriptionId&quot;],
+        &quot;properties&quot;: {
+          &quot;SubscriptionId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;SubscriptionName&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceGroups&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } }
+        }
+      }
+    },
+    &quot;CreatedAt&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;], &quot;format&quot;: &quot;date-time&quot; },
+    &quot;UpdatedAt&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;], &quot;format&quot;: &quot;date-time&quot; }
+  }
+}
+</code></pre>
+<h3>7.3 <code>DeactivateSecurityBotConfigResponse</code> — <code>DELETE /bots/azure/api/v1/security</code> (200)</h3>
+<p>Extends 9.2 with one additional required field:</p>
+<pre><code class="language-json">{
+  &quot;allOf&quot;: [
+    { &quot;$ref&quot;: &quot;#/9.2&quot; },
+    {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;required&quot;: [&quot;Message&quot;],
+      &quot;properties&quot;: { &quot;Message&quot;: { &quot;type&quot;: &quot;string&quot; } }
+    }
+  ]
+}
+</code></pre>
+<h3>7.4 <code>SecurityBotSubscriptionsResponse</code> — <code>GET /bots/azure/api/v1/security/subscriptions</code></h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;Subscriptions&quot;],
+  &quot;properties&quot;: {
+    &quot;Subscriptions&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;items&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;required&quot;: [&quot;SubscriptionId&quot;, &quot;IsSelected&quot;],
+        &quot;properties&quot;: {
+          &quot;SubscriptionId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;SubscriptionName&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;IsSelected&quot;: { &quot;type&quot;: &quot;boolean&quot; },
+          &quot;ConnectionError&quot;: { &quot;type&quot;: &quot;boolean&quot; },
+          &quot;ResourceGroups&quot;: {
+            &quot;type&quot;: &quot;array&quot;,
+            &quot;items&quot;: {
+              &quot;type&quot;: &quot;object&quot;,
+              &quot;required&quot;: [&quot;ResourceGroupName&quot;, &quot;IsSelected&quot;],
+              &quot;properties&quot;: {
+                &quot;ResourceGroupName&quot;: { &quot;type&quot;: &quot;string&quot; },
+                &quot;IsSelected&quot;: { &quot;type&quot;: &quot;boolean&quot; }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+<h3>7.5 <code>SecurityBotFilterOptionsResponse</code> — all <code>filter-options/*</code> endpoints</h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;Values&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;HasMore&quot;: { &quot;type&quot;: &quot;boolean&quot; },
+    &quot;NextOffset&quot;: { &quot;type&quot;: [&quot;integer&quot;, &quot;null&quot;] }
+  }
+}
+</code></pre>
+<h3>7.6 <code>SecurityBotFindingsPageResponse</code> — <code>GET /bots/azure/api/v1/security/findings</code></h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;Total&quot;, &quot;Page&quot;, &quot;PageSize&quot;, &quot;Findings&quot;],
+  &quot;properties&quot;: {
+    &quot;Total&quot;: { &quot;type&quot;: &quot;integer&quot;, &quot;minimum&quot;: 0 },
+    &quot;Page&quot;: { &quot;type&quot;: &quot;integer&quot;, &quot;minimum&quot;: 1 },
+    &quot;PageSize&quot;: { &quot;type&quot;: &quot;integer&quot;, &quot;minimum&quot;: 1 },
+    &quot;Findings&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;items&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;required&quot;: [&quot;FindingId&quot;, &quot;CheckCode&quot;, &quot;SubscriptionId&quot;, &quot;Status&quot;],
+        &quot;properties&quot;: {
+          &quot;FindingId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;CheckCode&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;CheckTitle&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceId&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceName&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceType&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceGroup&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;SubscriptionId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;Subscription&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;Region&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;RiskLevel&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;], &quot;enum&quot;: [&quot;Critical&quot;, &quot;High&quot;, &quot;Medium&quot;, &quot;Low&quot;, null] },
+          &quot;Status&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;IsSuppressed&quot;: { &quot;type&quot;: &quot;boolean&quot; },
+          &quot;Source&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ScannedAt&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;], &quot;format&quot;: &quot;date-time&quot; },
+          &quot;DetailedDescription&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;PotentialBenefits&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;LearnMoreLink&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;AdditionalInformation&quot;: { &quot;type&quot;: [&quot;object&quot;, &quot;null&quot;] }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+<h3>7.7 <code>SuppressSecurityBotFindingsResponse</code> — <code>PATCH /bots/azure/api/v1/security/findings/suppress</code></h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;Message&quot;, &quot;SuppressedCount&quot;],
+  &quot;properties&quot;: {
+    &quot;Message&quot;: { &quot;type&quot;: &quot;string&quot; },
+    &quot;SuppressedCount&quot;: { &quot;type&quot;: &quot;integer&quot;, &quot;minimum&quot;: 0 }
+  }
+}
+</code></pre>
+<h3>7.7b <code>ExportSecurityBotFindingsResponse</code> — <code>POST /bots/azure/api/v1/security/findings/export</code> (202)</h3>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;ReportId&quot;],
+  &quot;properties&quot;: { &quot;ReportId&quot;: { &quot;type&quot;: &quot;string&quot; } }
+}
+</code></pre>
+<h3>7.8 Request schemas (for building/validating request bodies before sending)</h3>
+<p><strong><code>UpsertSecurityBotConfigRequest</code></strong> — <code>POST</code>/<code>PUT .../security</code> body:</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;Targets&quot;],
+  &quot;properties&quot;: {
+    &quot;Targets&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;minItems&quot;: 1,
+      &quot;items&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;required&quot;: [&quot;SubscriptionId&quot;, &quot;ResourceGroups&quot;],
+        &quot;properties&quot;: {
+          &quot;SubscriptionId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;SubscriptionName&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceGroups&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; }, &quot;minItems&quot;: 1 }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+<blockquote>
+<p><code>ResourceGroups.minItems: 1</code> reflects the <strong>real</strong> <code>model_validator</code> behavior (§2 gap) — not the
+PRD&#39;s &quot;empty means all&quot; claim. Building a valid request today requires real RG names.</p>
+</blockquote>
+<p><strong><code>DeactivateSecurityBotConfigRequest</code></strong> — <code>DELETE .../security</code> body:</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;DeactivationScope&quot;],
+  &quot;properties&quot;: {
+    &quot;DeactivationScope&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;enum&quot;: [&quot;all&quot;, &quot;selected&quot;] },
+    &quot;Targets&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;items&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;required&quot;: [&quot;SubscriptionId&quot;],
+        &quot;properties&quot;: {
+          &quot;SubscriptionId&quot;: { &quot;type&quot;: &quot;string&quot; },
+          &quot;SubscriptionName&quot;: { &quot;type&quot;: [&quot;string&quot;, &quot;null&quot;] },
+          &quot;ResourceGroups&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+<blockquote>
+<p>Unlike the upsert request, <code>ResourceGroups</code> here has <strong>no</strong> minItems constraint — empty means
+&quot;whole subscription&quot; for deactivation targets only.</p>
+</blockquote>
+<p><strong><code>SuppressSecurityBotFindingsRequest</code></strong> — <code>PATCH .../findings/suppress</code> body:</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;required&quot;: [&quot;FindingIds&quot;],
+  &quot;properties&quot;: {
+    &quot;FindingIds&quot;: {
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;minItems&quot;: 1,
+      &quot;maxItems&quot;: 50,
+      &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; }
+    }
+  }
+}
+</code></pre>
+<p><strong><code>ExportSecurityBotFindingsRequest</code></strong> — <code>POST .../findings/export</code> body (all optional):</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;CheckTitle&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;Severity&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;SubscriptionId&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;ResourceType&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;ResourceGroup&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;Region&quot;: { &quot;type&quot;: &quot;array&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;string&quot; } }
+  }
+}
+</code></pre>
+
+
+</body>
+</html>
