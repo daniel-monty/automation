@@ -1,10 +1,7 @@
-# PLACEHOLDER — not implemented or executed.
-# The backend contract for POST /reports/schedule with platformReportType "AzureSecurityBotReport"
-# is explicitly flagged as an open/unconfirmed question (PRD-9 §5.8; see
-# feature-spec/AZURE_SECURITY_BOT_E2E_STORY.html §4). No step defs bind this file, so it is not
-# collected or run. Confirm the real request/response shape against a live environment before
-# implementing — do not guess it.
-@api @azure
+# PLACEHOLDER — not implemented; backend contract is an open question. Bound and skipped
+# (not silently absent) so it surfaces in the Allure report under a manual-testing tag. See
+# feature-spec/AZURE_SECURITY_BOT_E2E_STORY.html §4 and the step-def module docstring.
+@api @azure @az_security_bot @manual
 Feature: Azure security bot report scheduling
 
   Background:

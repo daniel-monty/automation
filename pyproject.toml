@@ -47,6 +47,7 @@ markers = [
     "azure: Azure cloud provider journeys",
     "aws: AWS cloud provider journeys",
     "az_security_bot: Azure security bot feature (activation, findings, deactivation)",
+    "manual: not automated — verified manually or out of scope for this pytest suite",
 ]
 
 # ---------------------------------------------------------------------------
