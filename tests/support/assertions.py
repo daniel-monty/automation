@@ -160,6 +160,158 @@ def assert_bot_catalog_schema(items: list[dict[str, Any]]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Azure security bot (activation) assertions. Response shape confirmed against dev1:
+#   POST/DELETE /bots/azure/api/v1/security return the Config object directly (no envelope):
+#   {"BotConfigurationId", "BotMasterId", "Status", "FailedFindingsCount", "LastScanAt",
+#    "Targets": [{"SubscriptionId", "SubscriptionName", "ResourceGroups": [str, ...]}],
+#    "CreatedAt", "UpdatedAt"}
+# A 409 conflict (already active) returns {"ErrorMessage": "..."} instead of the Config.
+# ---------------------------------------------------------------------------
+
+
+@allure.step("Security bot is active with the requested target {subscription_id}")
+def assert_security_bot_active_with_target(
+    response: httpx.Response,
+    subscription_id: str,
+    subscription_name: str,
+    resource_groups: list[str],
+) -> None:
+    """Assert the activation response is ACTIVE and carries the requested target."""
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("BotConfigurationId"), f"expected a BotConfigurationId, got: {body!r}"
+    assert body.get("Status") == "ACTIVE", f"expected Status 'ACTIVE', got: {body.get('Status')!r}"
+    targets = body.get("Targets")
+    assert isinstance(targets, list) and targets, (
+        f"expected a non-empty Targets list, got: {targets!r}"
+    )
+    matching = [t for t in targets if t.get("SubscriptionId") == subscription_id]
+    assert matching, f"expected target {subscription_id!r} in Targets, got: {targets!r}"
+    target = matching[0]
+    assert target.get("SubscriptionName") == subscription_name, (
+        f"expected SubscriptionName {subscription_name!r}, got: {target.get('SubscriptionName')!r}"
+    )
+    assert set(target.get("ResourceGroups") or []) == set(resource_groups), (
+        f"expected ResourceGroups {resource_groups!r}, got: {target.get('ResourceGroups')!r}"
+    )
+
+
+@allure.step("Response indicates the security bot is already active")
+def assert_security_bot_already_active(response: httpx.Response) -> None:
+    """Assert the 409 conflict body carries the confirmed 'already active' error message."""
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("ErrorMessage") == "Azure Security Bot configuration is already active", (
+        f"expected the confirmed 'already active' conflict message, got: {body!r}"
+    )
+
+
+@allure.step("Security bot configuration is deactivated")
+def assert_security_bot_deactivated(response: httpx.Response) -> None:
+    """Assert the deactivation response carries Status 'NOT_CONFIGURED'.
+
+    Confirmed against dev1: the DELETE response's ``Targets`` list is NOT cleared (it echoes
+    the last-configured targets) even though ``Status`` flips to ``NOT_CONFIGURED`` — so only
+    ``Status`` is asserted here, never ``Targets`` emptiness.
+    """
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("Status") == "NOT_CONFIGURED", (
+        f"expected Status 'NOT_CONFIGURED', got: {body.get('Status')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Azure security bot insights assertions. Response shapes confirmed against dev1:
+#   GET .../security/insights/filter-options/{resource-groups,regions,resource-types} ->
+#     {"Values": [str, ...], "HasMore": bool, "NextOffset": int | None}
+#   GET .../security/insights ->
+#     {"TotalFailedFindings": int, "LastScanAt": str, "ScanStatus": "RUNNING" | "COMPLETED" | ...,
+#      "FindingsBySubscription": [{"SubscriptionId", "SubscriptionName", "Count"}],
+#      "FindingsBySeverity": [{"Severity", "Count"}],
+#      "FindingsByResourceType": [{"ResourceType", "Count"}],
+#      "TopViolatingResources": [{"ResourceId", "ResourceType", "ResourceName", "Count"}],
+#      "TopViolationChecks": [{"CheckTitle", "CheckCode", "Count"}]}
+#   These are checked right after activation, when the async Azure scan the activation
+#   triggers is very likely still RUNNING — so only structure is asserted here (list-typed
+#   breakdowns, a non-blank ScanStatus), never scan completion or non-empty findings.
+# ---------------------------------------------------------------------------
+
+
+@allure.step("Filter options response is a well-formed Values list")
+def assert_filter_options_schema(response: httpx.Response) -> list[Any]:
+    """Assert the envelope is well-formed and return the Values list (may be empty)."""
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    values = body.get("Values")
+    assert isinstance(values, list), f"expected a 'Values' list, got keys {list(body.keys())}"
+    assert isinstance(body.get("HasMore"), bool), f"expected a boolean 'HasMore', got: {body!r}"
+    return values
+
+
+@allure.step("Security bot insights summary has a well-formed findings breakdown")
+def assert_security_insights_summary(response: httpx.Response) -> None:
+    """Assert the insights summary carries a ScanStatus and well-formed findings breakdowns.
+
+    Scan completion is async (a real external Azure job that can take minutes) — this only
+    asserts the response's *structure*, not that the scan has completed or that any breakdown
+    is non-empty, so the test doesn't have to wait on external scan timing.
+    """
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    assert body.get("ScanStatus"), (
+        f"expected a non-blank ScanStatus, got: {body.get('ScanStatus')!r}"
+    )
+    for key in (
+        "FindingsBySubscription",
+        "FindingsBySeverity",
+        "FindingsByResourceType",
+        "TopViolatingResources",
+        "TopViolationChecks",
+    ):
+        assert isinstance(body.get(key), list), f"expected a '{key}' list, got: {body.get(key)!r}"
+
+
+@allure.step("Security findings response is a well-formed findings list")
+def assert_security_findings_schema(response: httpx.Response) -> list[Any]:
+    """Assert the findings envelope is well-formed and return the Findings list.
+
+    Response shape confirmed against dev1:
+      {"Total": int, "Page": int, "PageSize": int,
+       "Findings": [{"FindingId", "CheckCode", "ResourceId", "ResourceName", "ResourceType",
+                      "SubscriptionId", "Region", "RiskLevel", "Status", "Source",
+                      "DetailedDescription", "PotentialBenefits", "LearnMoreLink", ...}]}
+    Findings are populated by the same async Azure scan as the insights summary, so an empty
+    list right after activation is expected here too — this only asserts structure (every
+    finding that IS present carries the confirmed fields), never that the list is non-empty.
+    Some fields (e.g. Region, Source) are legitimately null, so presence is checked, not
+    truthiness.
+    """
+    body: Any = response.json()
+    assert isinstance(body, dict), f"expected a JSON object, got {type(body).__name__}"
+    findings = body.get("Findings")
+    assert isinstance(findings, list), f"expected a 'Findings' list, got keys {list(body.keys())}"
+    for finding in findings:
+        for key in (
+            "FindingId",
+            "CheckCode",
+            "ResourceId",
+            "ResourceName",
+            "ResourceType",
+            "SubscriptionId",
+            "Region",
+            "RiskLevel",
+            "Status",
+            "Source",
+            "DetailedDescription",
+            "PotentialBenefits",
+            "LearnMoreLink",
+        ):
+            assert key in finding, f"finding missing '{key}': {finding}"
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # AWS WAR-assessment workload search assertions. Response shape confirmed against dev:
 #   {"Limit": int, "PageNumber": int,
 #    "WorkloadSummaries": [{"WorkloadId", "WorkloadName", "Description", "Status", ...}]}
