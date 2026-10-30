@@ -2,6 +2,7 @@
 name: "E2E Test Reviewer"
 description: "Reviews E2E test changes against the layering rules, two-gate rule, Definition of Done, and ban list. Read + lint only — never edits files."
 user-invocable: true
+model: "Claude Sonnet 5 (copilot)"
 tools:
   - read
   - search
@@ -15,7 +16,9 @@ run lint/type checks, and report findings. Edits are the author's job.
 
 ## Inputs
 
-Review the current diff (e.g. `git diff dev -- tests/`) or the files named in the prompt.
+Review the current diff (e.g. `git diff dev -- tests/`) or the files named in the prompt. When
+the **E2E Test Orchestrator** runs you as a subagent, the task names the changed files and the
+approved prompt — review exactly those, and check the tests match the approved scenarios.
 Read [`AGENTS.md`](../../AGENTS.md) and
 `.github/instructions/e2e-best-practices.instructions.md` first — they define the bar.
 

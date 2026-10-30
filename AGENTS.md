@@ -99,7 +99,9 @@ Every authored test must pass `ruff`, `mypy`, and the layering/ban-list checks b
 
 ## Agents & MCP
 
-Agents (`.github/agents/`): **`e2e-test-author`** (the `/add-*` skills delegate to it), **`e2e-test-reviewer`**
+Agents (`.github/agents/`, all on Claude Sonnet 5): **`e2e-test-orchestrator`** (builds the prompt, then
+hands over to author + reviewer as subagents once you approve it; stops for a human only at its
+checkpoints), **`e2e-test-author`** (the `/add-*` skills delegate to it), **`e2e-test-reviewer`**
 (read + lint, ban-list enforcement), **`e2e-failure-triage`** (classify/dedupe/post new failures).
 The **Atlassian MCP** (`.vscode/mcp.json`) gives agents Jira/Confluence access — fetch ticket
 acceptance criteria, read the known-issues list, post triage summaries. Don't put Jira tokens in

@@ -48,8 +48,8 @@ pytest -m "(smoke or critical) and not quarantine"        # run the gate subset
 npm run report:generate && npm run report:open            # view the Allure report
 ```
 
-To add a test, open the repo in VS Code / Copilot and run the `/decide-api-vs-ui` skill, then
-`/add-api-test` or `/add-ui-test` (see [§7](#7-writing-a-new-test)).
+To add a test, open the repo in VS Code / Copilot and start the **E2E Test Orchestrator** agent with a
+curl, Jira key, or journey — or run the `/decide-api-vs-ui` skill, then `/add-api-test` or `/add-ui-test` (see [§7](#7-writing-a-new-test)).
 
 ---
 
@@ -261,6 +261,73 @@ What the report gives you:
 
 ## 7. Writing a new test
 
+Two ways in. The **E2E Test Orchestrator** agent runs the whole flow and stops only where a human
+is needed (§7.1, recommended). Or run the skills one at a time (§7.2).
+
+### 7.1 Automatic: the E2E Test Orchestrator (recommended)
+
+```mermaid
+flowchart TD
+    IN["Curl, Jira key, or journey"] --> ORC["E2E Test Orchestrator<br/>builds the /add-*-test prompt"]
+    ORC --> G1{{"You: approve the prompt"}}
+    G1 -->|approve| PLAN["E2E Test Author subagent<br/>MODE: PLAN, writes nothing"]
+    PLAN -->|"clean"| IMPL["E2E Test Author subagent<br/>writes the test, runs ruff, mypy, pytest"]
+    PLAN -->|"blockers or deviation"| G2{{"You: answer / approve the plan"}}
+    G2 --> IMPL
+    IMPL --> REV["E2E Test Reviewer subagent<br/>ban list, ruff, mypy, real run"]
+    REV -->|"CHANGES REQUESTED<br/>(up to 2 rounds)"| IMPL
+    REV -->|APPROVE| OUT(["Summary back to you<br/>you commit and open the PR"])
+
+    classDef ro fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+    classDef rw fill:#ccfbf1,stroke:#0d9488,color:#042f2e
+    classDef human fill:#fef3c7,stroke:#d97706,color:#451a03
+    class ORC,PLAN,REV ro
+    class IMPL rw
+    class G1,G2,OUT human
+```
+
+<sub>Purple: read-only. Teal: writes the test files. Amber: a human decides.</sub>
+
+In Copilot Chat, pick **E2E Test Orchestrator** in the agent picker and give it a curl, a Jira
+key, a journey description, or a draft prompt. It follows `/build-test-prompt` (asking any
+blocking questions first), shows you the prompt, and — once you approve it — hands over to the
+author and reviewer as **subagents** with no further clicks. It asks you again only when:
+
+| Checkpoint | When it stops for you |
+|---|---|
+| Clarify | Blocking unknowns before the prompt is built (layer, arrange strategy, async polling, shared resources, non-default env) |
+| 1. Prompt | **Always** — approve, edit, or stop |
+| 2. Plan | The author's plan has blockers (creds, base URL, spec, unconfirmable response shape), deviates from the approved prompt, or needs a ban-list exception / destructive dev1 operation |
+| 3. Implement | The author is blocked, or the real `pytest` run fails for an environment reason |
+| 4. Review | The reviewer still requests changes after two automatic fix rounds, or the author disputes a blocker |
+
+It never commits, pushes, opens PRs, or touches Jira — the final summary comes back to you.
+Subagents have no chat history and can't ask you questions, so the orchestrator passes them
+everything and relays their questions.
+
+**Model setup (Claude Sonnet 5, 1M context, high thinking).** Every agent file sets
+`model: "Claude Sonnet 5 (copilot)"`, which the subagents use. In the VS Code (Local) harness:
+
+- Start the orchestrator with **Claude Sonnet 5** selected in the model picker. The docs don't say
+  the main agent honours `model:`, and a subagent whose model is above the conversation model's
+  cost tier is refused.
+- Open the **>** arrow next to the model name in the picker and choose the **1M** context and the
+  **High** thinking effort. There's no per-agent setting for either in this harness, and the docs
+  don't say whether subagents inherit them.
+- If VS Code flags the `model:` value, replace it with the name its completion inserts.
+
+**Limits (per the VS Code / GitHub Copilot docs, Oct 2026).**
+
+- The automatic handover uses the **VS Code (Local) harness**. Subagent restriction (`agents:`)
+  and handoffs are Local-only. The Copilot harness and the GitHub cloud coding agent don't run
+  this flow — use the manual skills (§7.2) there.
+- The cloud coding agent expects runtime model IDs, not `Claude Sonnet 5 (copilot)`. If an agent
+  (e.g. triage) runs in the cloud, check its `model:` value there.
+- The orchestrator asks you through the `vscode/askQuestions` tool. If that tool isn't available,
+  it asks in a chat message and waits for your reply.
+
+### 7.2 Manual: run the skills one at a time
+
 ```mermaid
 flowchart TD
     IN["Curl, Jira key, or journey"] --> BTP["/build-test-prompt<br/>drafts the authoring prompt"]
@@ -285,7 +352,7 @@ The `/…` commands above are **agent skills** in `.github/skills/<name>/SKILL.m
 supports `.prompt.md` prompt files). Run one by typing `/<name>` plus its argument in Copilot Chat;
 each sets `disable-model-invocation: true`, so it only runs when you invoke it.
 
-### 7.1 Decide the layer (always first)
+#### Decide the layer (always first)
 
 Apply the [two-gate rule](#1-architecture--the-two-gate-rule). In Copilot:
 
@@ -295,7 +362,7 @@ Apply the [two-gate rule](#1-architecture--the-two-gate-rule). In Copilot:
 
 It returns a verdict (API / UI / contract) + tags and tells you which `/add-*` skill to run.
 
-### 7.2 Add an API test (the common case)
+#### Add an API test (the common case)
 
 **With Copilot (recommended):**
 
@@ -319,7 +386,7 @@ Allure-step assertions — fully tagged — then runs `ruff`/`mypy`/`pytest`.
    domain assertions.
 5. Run `ruff check . && ruff format --check . && mypy && pytest tests/step_defs/api/test_<journey>.py`.
 
-### 7.3 Add a UI test (thin, critical only)
+#### Add a UI test (thin, critical only)
 
 ```
 /add-ui-test  "login, then the cost dashboard renders my data"    # or a Jira key
@@ -333,7 +400,7 @@ locators on the live dev1 app, seeds state
 > ⚠️ Playwright `codegen` / Test Agents emit **TypeScript**. Output **must be materialized as
 > Python `pytest-bdd`** step defs + page objects. Every locator self-heal must log a loud warning.
 
-### 7.4 Add a contract / fuzz test (nightly)
+#### Add a contract / fuzz test (nightly)
 
 ```
 /add-contract-test  customer_account        # or an endpoint group / tag, or "all"
@@ -342,7 +409,7 @@ locators on the live dev1 app, seeds state
 Wires `schemathesis` against `E2E_OPENAPI_SPEC`, authenticated, scoped to an endpoint group,
 excluding destructive ops on shared dev1. Marked `@contract` (nightly-only). Template: §10.
 
-### 7.5 Review before you push
+#### Review before you push
 
 ```
 # In Copilot, switch to the e2e-test-reviewer agent (read + lint only)
@@ -431,7 +498,7 @@ Automation/
 │   ├── copilot-instructions.md
 │   ├── instructions/         # e2e-best-practices.instructions.md (+ .reference.md templates)
 │   ├── skills/               # <name>/SKILL.md: build-test-prompt, decide-api-vs-ui, add-api-test, add-ui-test, add-contract-test
-│   ├── agents/               # e2e-test-author, e2e-test-reviewer, e2e-failure-triage
+│   ├── agents/               # e2e-test-orchestrator, e2e-test-author, e2e-test-reviewer, e2e-failure-triage
 │   └── workflows/            # e2e-gate (PR) + e2e-nightly
 └── tests/
     ├── features/  api/ ui/   # Gherkin (.feature) — declarative, stakeholder-readable

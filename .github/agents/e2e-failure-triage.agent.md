@@ -2,6 +2,7 @@
 name: "E2E Failure Triage"
 description: "Triages NEW E2E failures from an Allure run: excludes known issues (via Jira), classifies each as regression | flaky | env | test-bug, dedupes, drafts a root-cause summary, and posts it to the PR / Jira. Read + report only — never edits test code."
 user-invocable: true
+model: "Claude Sonnet 5 (copilot)"
 tools:
   - read
   - search

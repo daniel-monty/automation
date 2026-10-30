@@ -21,7 +21,9 @@ automatically:
 - `/add-ui-test` — author a thin, critical UI E2E journey (Playwright).
 - `/add-contract-test` — wire a schemathesis contract/fuzz test from the OpenAPI spec.
 
-**Typical flow:** `/decide-api-vs-ui` → `/add-api-test` *or* `/add-ui-test`.
+**Typical flow:** start the **`e2e-test-orchestrator`** agent with a curl / Jira key / journey. It builds
+the prompt, and once you approve it, runs the author and reviewer as subagents automatically, stopping
+for a human only at its checkpoints. Manual flow: `/decide-api-vs-ui` → `/add-api-test` *or* `/add-ui-test`.
 
 These skills operate as the **`e2e-test-author`** agent (`.github/agents/`). Two more agents:
 **`e2e-test-reviewer`** reviews a diff against the ban list (read + lint only), and

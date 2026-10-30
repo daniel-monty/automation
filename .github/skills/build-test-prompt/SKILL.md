@@ -100,4 +100,6 @@ URL/creds, exact payload, response keys, the OpenAPI spec for contract) — bloc
 settled in Step 1b, so never park one here. End with:
 "Review, then run this prompt to author the test."
 
-> Output a prompt only — do not create files, clients, features, or tests yourself.
+> Output a prompt only — do not create files, clients, features, or tests yourself. To have the
+> approved prompt handed over to the author and reviewer automatically, start the
+> **E2E Test Orchestrator** agent with the same input instead.
