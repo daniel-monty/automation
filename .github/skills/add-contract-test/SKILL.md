@@ -1,8 +1,9 @@
 ---
+name: add-contract-test
 description: "Wire a schemathesis contract/fuzz test from the OpenAPI spec for an endpoint group. Schema-driven coverage for the nightly suite."
+disable-model-invocation: true
 argument-hint: "<endpoint group or tag>  e.g. 'customer_account' or 'all'"
 ---
-
 # /add-contract-test — Wire a schemathesis contract test
 
 Operate as the **`e2e-test-author`** agent. Generate schema-driven contract/fuzz coverage that

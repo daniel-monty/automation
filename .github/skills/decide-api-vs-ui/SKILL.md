@@ -1,8 +1,9 @@
 ---
+name: decide-api-vs-ui
 description: "Apply the two-gate rule to a candidate journey and recommend the test layer (API / UI / contract) before any code is written."
+disable-model-invocation: true
 argument-hint: "<journey description or Jira key>  e.g. 'user enables a Day2 bot and sees it active' or PRO-1234"
 ---
-
 # /decide-api-vs-ui — Choose the test layer
 
 You recommend the correct E2E layer for a candidate journey. **You do not write tests** — you

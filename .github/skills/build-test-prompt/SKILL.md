@@ -1,8 +1,9 @@
 ---
+name: build-test-prompt
 description: "Generate or improve an authoring prompt (/add-api-test, /add-ui-test, /add-contract-test) from a curl, a Jira key, a journey description, or a rough draft — fully aligned to the suite's conventions. Outputs a ready-to-run prompt; does not write tests."
+disable-model-invocation: true
 argument-hint: "<curl | Jira key | journey description | rough draft prompt>"
 ---
-
 # /build-test-prompt — Generate or improve a test-authoring prompt
 
 You turn raw input into a polished, convention-correct `/add-*-test` prompt that the

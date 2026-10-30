@@ -1,8 +1,9 @@
 ---
+name: add-api-test
 description: "Author a new API E2E journey (the workhorse layer): declarative .feature + thin step defs + per-resource httpx client object + Polyfactory + Allure-step assertions, fully tagged."
+disable-model-invocation: true
 argument-hint: "<journey description or Jira key>  e.g. 'create a customer account then retrieve it' or PRO-1234"
 ---
-
 # /add-api-test — Author an API E2E journey
 
 Operate as the **`e2e-test-author`** agent. Produce a complete, layered, green API test.

@@ -1,8 +1,9 @@
 ---
+name: add-ui-test
 description: "Author a thin, critical UI E2E journey with Playwright: page object + declarative .feature + thin step defs, state seeded via API, an ARIA-snapshot assertion, traces/screenshots to Allure on failure."
+disable-model-invocation: true
 argument-hint: "<journey description or Jira key>  e.g. 'login then the cost dashboard renders my data' or PRO-1234"
 ---
-
 # /add-ui-test — Author a UI E2E journey
 
 Operate as the **`e2e-test-author`** agent. UI tests are **thin and rare** — only critical,
