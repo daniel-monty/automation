@@ -28,6 +28,7 @@ Feature: Azure WAFR workload listing
     Then both page requests succeeded with status 200
     And the two workload pages do not overlap
 
+  @regression
   Scenario: Unauthenticated request is rejected
     When an unauthenticated user lists Azure WAFR workloads
     Then the response status is 401 or 403

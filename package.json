@@ -7,8 +7,9 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "report:clean": "rm -rf allure-results allure-report",
+    "report:clean": "node -e \"for (const d of ['allure-results', 'allure-report']) require('fs').rmSync(d, { recursive: true, force: true })\"",
     "report:generate": "allure generate allure-results --output allure-report --config allure/allurerc.mjs",
+    "report:gate": "allure quality-gate allure-results --config allure/qualitygate.mjs",
     "report:open": "allure open allure-report",
     "report:watch": "allure watch allure-results --config allure/allurerc.mjs"
   },

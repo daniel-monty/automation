@@ -39,7 +39,7 @@ environment: **dev1**.
 ```bash
 git clone <repo-url> && cd Automation
 python3.12 -m venv .venv && source .venv/bin/activate     # Python 3.11+
-pip install -e . && pip install ruff mypy pre-commit
+pip install -e . --group dev
 playwright install                                         # browsers
 npm install                                                # Allure 3 report CLI
 cp .env.example .env                                       # fill in dev1 creds (never commit)
@@ -102,7 +102,7 @@ cd Automation
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e .                      # runtime deps from pyproject.toml
-pip install ruff mypy pre-commit      # quality tooling
+pip install --group dev               # pinned ruff/mypy/pre-commit (pip >= 25.1)
 
 # 2. Playwright browsers (for UI tests)
 playwright install                    # or: playwright install --with-deps chromium
@@ -139,6 +139,7 @@ is prefixed `E2E_` and loaded from `.env` (gitignored) or real env vars in CI. C
 | `E2E_API_BASE_URL` | dev1 API base URL | platform team / OpenAPI `servers` |
 | `E2E_UI_BASE_URL` | dev1 app URL (for Playwright) | platform team |
 | `E2E_TEST_USERNAME` / `E2E_TEST_PASSWORD` | dedicated **no-MFA** test user (logs in via `/auth/signin`) | platform team (secret) |
+| `E2E_TEST_USERS` | extra users by role/tenant, JSON: `{"read_only": {"username": "…", "password": "…"}}` | platform team (secret) |
 | `E2E_AUTH_HEADER_SCHEME` | blank = raw token; `Bearer` = `Bearer <token>` | confirmed: blank (raw) |
 | `E2E_API_KEY` | `x-api-key` header — blank if endpoints don't need it | platform team (secret) |
 | `E2E_OPENAPI_SPEC` | path/URL to the richer OpenAPI spec | drives `@contract` layer |
@@ -153,11 +154,15 @@ login. The cached ID token is sent as `Authorization` (raw, no `Bearer`); `x-api
 only when set. Tests never handle tokens directly — the `api_client` fixture attaches headers and
 **retries once on a 401** after refreshing.
 
+- **Other roles / tenants:** `api_client_as("read_only")` signs in as a user from
+  `E2E_TEST_USERS` (cached per session). Use it for permission tests ("read-only can't delete")
+  and tenant isolation ("tenant B can't read tenant A's data"). An unknown name fails the test.
+
 - **Negative-auth tests:** use the `unauthenticated_api_client` fixture (no auth headers) to
   assert `401`/`403`, or pass `headers={"Authorization": "bad"}` to a request to test a bad token.
 - **UI auth:** UI tests start **pre-authenticated** — `tests/support/ui_auth.py` mints a token and
   injects it as a Playwright `storage_state` (arrange-via-API login), so no test logs in through
-  the form except the dedicated login-journey test.
+  the form except the login journey, tagged `@logged_out` (fresh context, no API sign-in).
 
 > ⚠️ **Never commit `.env`.** It is gitignored. In CI, the same values come from GitHub secrets.
 
@@ -169,10 +174,9 @@ only when set. Tests never handle tokens directly — the `api_client` fixture a
 # By layer / selection (tags)
 pytest -m api                       # API E2E only
 pytest -m ui                        # UI E2E only
-pytest -m "smoke or critical"       # the PR gate subset (fast)
-pytest -m "regression or contract"  # the full nightly set
-pytest -m "api and not slow"        # combine markers
-pytest                              # everything
+pytest -m "(smoke or critical) and not quarantine"   # the PR gate subset (fast)
+pytest                              # the full nightly set (everything, incl. @quarantine)
+pytest -n auto --dist loadfile      # in parallel (what CI does)
 
 # Targeting
 pytest tests/step_defs/api/test_customer_account.py     # one file
@@ -189,41 +193,93 @@ pytest --alluredir=allure-results   # already set in pyproject; results for the 
 > Until the first `.feature` is authored, `pytest` reports **"no tests collected"** — that's
 > expected, not an error.
 
-**Parallelism:** add `pytest-xdist` (`pip install pytest-xdist`) and run `pytest -n auto`. Because
-state is arranged via API with namespaced/ephemeral data, scenarios are independent and safe to
-parallelize — but mind shared-dev1 rate limits.
+**Parallelism:** `pytest-xdist` is installed; CI runs `-n auto --dist loadfile` (one feature
+file per worker, so a feature's scenarios stay together). Scenarios are independent because data
+is namespaced (`e2e-<hex>`) and arranged via the API. Each worker signs in once. Mind shared-dev1
+rate limits; `429`s are retried by `ApiClient`.
+
+**Timeouts:** every test gets 300s (`timeout` in `pyproject.toml`, pytest-timeout). A hung call
+or browser fails that test instead of stalling CI. Override one test with
+`@pytest.mark.timeout(600)` only with a reason.
+
+### When a test fails: where the evidence is
+
+- **API:** every call in the Allure report has an attachment named `METHOD /path -> status`
+  with the request and response (headers with secrets masked, bodies up to 20k chars), the
+  elapsed time, and the AWS request ids (`x-amzn-RequestId`, `x-amzn-Trace-Id`). Search
+  CloudWatch Logs for the request id, or X-Ray for the trace id.
+- **Correlation id:** all calls in one test share an `X-Correlation-Id` header (in each
+  attachment), so you can find that test's calls in backend logs if the service logs it.
+- **UI:** a failed UI test attaches a full-page screenshot and the page URL. The Playwright trace
+  is kept in `test-results/` (CI artifact `playwright-traces-*`); open it with
+  `playwright show-trace test-results/<test>/trace.zip`.
+- **Report header:** `environment.properties` (env, base URLs, commit) is written by pytest, so
+  every report says which environment produced it.
+- **Contract tests** report through JUnit XML (`allure-pytest-bdd` only reports Gherkin
+  scenarios). Nightly runs them as a separate step that writes
+  `allure-results/contract-junit.xml`; each failure names the schemathesis check and gives a
+  `curl` to reproduce it.
 
 ---
 
 ## 6. The Allure 3 report
 
 ```bash
-npm run report:clean      # wipe allure-results/ + allure-report/ before a fresh run
-npm run report:generate   # build a single self-contained allure-report/index.html
+npm run report:generate   # build a single self-contained allure-report/index.html (+ append history)
+npm run report:gate       # exit 1 if any critical-severity test failed (CI runs this on PRs)
 npm run report:open       # open the report (lands on it directly — no folder to click)
 npm run report:watch      # live-updating report while you run tests locally
+npm run report:clean      # optional: wipe allure-results/ + allure-report/ (history is kept)
 ```
+
+`pytest` wipes `allure-results/` itself (`--clean-alluredir`), so each report shows one run.
 
 What the report gives you:
 
 - **Stakeholder grouping** — `epic / feature / story` (set via tags/decorators on tests).
-- **Environments** — API vs UI results separated and linked in one report (`allure/allurerc.mjs`).
-- **History / trends** — **self-hosted** in `allure/history/` (no SaaS, per EU + GOVCloud
-  data-residency). CI restores it before each run so trends persist.
-- **Categories** — failures bucketed (known issues / infra / test defect / product defect) via
-  `allure/categories.json`.
-- **Quality gate** — `allure/allurerc.mjs` fails on critical-severity failures (reporting-side
-  gate; the hard PR gate is pytest's own exit code).
+- **History / trends** — **self-hosted** in `allure/history/history.jsonl` (no SaaS, per EU +
+  GOVCloud data-residency). It sits outside `allure-results/` and `allure-report/`, so cleaning
+  never touches it; each `allure generate` appends one run (capped by `historyLimit`).
+  Nightly restores it from the Actions cache and saves it even on failure. PRs restore it
+  read-only. Locally it is gitignored and builds up from your own runs.
+- **Testing pyramid (Graphs tab)** — Allure's default unit / integration / e2e chart. This repo
+  fills only the `e2e` layer (`layer=E2E` on every test, contract included). The unit and
+  integration layers fill once the platform (pytest) and UI (Jest) repos' results for the same
+  `dev` commit are pulled in, each labelled `layer=unit` or `layer=integration` in its own repo.
+- **Categories** — failures bucketed (quarantined / infrastructure / product defect / test
+  defect) by the `categories` rules in `allure/allurerc.mjs`.
+- **Quality gate** — `npm run report:gate` exits 1 on any critical-severity failure (rules in
+  `allure/allurerc.mjs`, run via `allure/qualitygate.mjs` to dodge an Allure 3.13 bug where
+  `historyPath` silently skips the gate). The hard PR gate is still pytest's exit code.
 - **Known issues** — `allure/known-issues.json` labels known/blocked items separately from new
   failures (sync from Jira where possible).
 
-> ⚠️ **Verify on first run.** The Python adapter (`allure-pytest-bdd`) emits Allure **2** result
-> JSON; the Allure **3** CLI renders it. Smoke-test a real `allure generate` and confirm the v3
-> config keys (quality gate / known-issues / environments) before relying on them.
+> The Python adapter (`allure-pytest-bdd`) emits Allure **2** result JSON; the Allure **3** CLI
+> renders it. History and the quality gate are verified on Allure 3.13.1.
 
 ---
 
 ## 7. Writing a new test
+
+```mermaid
+flowchart TD
+    IN["Curl, Jira key, or journey"] --> BTP["/build-test-prompt<br/>drafts the authoring prompt"]
+    BTP --> DEC["/decide-api-vs-ui<br/>two-gate rule picks the layer"]
+    DEC -->|"API (default)"| API["/add-api-test"]
+    DEC -->|"critical + needs a browser"| UI["/add-ui-test"]
+    DEC -->|"nightly, from the spec"| CON["/add-contract-test"]
+    API & UI & CON --> AUTH["E2E Test Author agent<br/>writes feature, steps, client/page, factory<br/>then runs ruff, mypy, pytest"]
+    AUTH --> REV["e2e-test-reviewer<br/>ban list, ruff, mypy, real run"]
+    REV -->|APPROVE| PR(["Pull request"])
+    REV -->|CHANGES REQUESTED| AUTH
+
+    classDef ro fill:#ede9fe,stroke:#7c3aed,color:#2e1065
+    classDef rw fill:#ccfbf1,stroke:#0d9488,color:#042f2e
+    class BTP,DEC,REV ro
+    class API,UI,CON,AUTH rw
+```
+
+<sub>Purple: read-only (never writes files). Teal: writes the test files.</sub>
 
 ### 7.1 Decide the layer (always first)
 
@@ -305,12 +361,53 @@ One scheme drives three jobs: **what runs**, **what gates a PR**, **how the repo
 | `@ui` | UI E2E (browser) | layer selection |
 | `@regression` | full regression set | nightly |
 | `@contract` | schemathesis contract/fuzz | nightly |
+| `@quarantine` | known-flaky, pulled from the PR gate (humans only, see §8.1) | nightly only |
 
 Plus Allure `epic` / `feature` / `story` for leadership-readable grouping, and an `@allure.link`
 to a Jira requirement on at least one scenario per feature.
 
-- **PR gate:** `pytest -m "smoke or critical"`
-- **Nightly:** `pytest -m "regression or contract"`
+- **PR gate:** `pytest -m "(smoke or critical) and not quarantine"`
+- **Nightly:** `pytest` (every scenario, incl. `@contract` and `@quarantine`)
+
+### 8.1 Quarantining a flaky test (humans only)
+
+Quarantine pulls a known-flaky test out of the PR gate so it stops blocking merges, while it
+keeps running nightly so you can see when it's fixed. It is a **human decision**: Copilot agents
+never add or remove `@quarantine`; the triage agent can only recommend it.
+
+**Before you quarantine**, confirm the test is actually flaky, not a real regression:
+- the triage agent labelled it `flaky`, and
+- the Allure history shows it flipping between pass and fail on the same code.
+
+If it fails every time, it's a regression or a test bug: fix it or file it, don't quarantine.
+
+**To quarantine:**
+1. Open a Jira ticket for the flake (owner, suspected cause, link to the failing report).
+2. Tag the scenario (or the whole `Feature:`) with `@quarantine`, and put the ticket key and
+   reason in a comment on the line above:
+
+   ```gherkin
+   # Quarantined: PRO-1234, intermittent 504 from the cost-sync Lambda (2026-11-02, owner: your-name)
+   @quarantine
+   Scenario: User sees the monthly cost summary
+   ```
+
+3. Open a PR. A QA reviewer approves it; the tag never goes in with an unrelated change.
+
+**What changes:** the PR gate skips the test (`and not quarantine`). Nightly still runs it, and
+in the Allure report its failures land in the **Quarantined (known flaky)** category, separate
+from new failures.
+
+**To release:** once the fix is merged and the test passes nightly for about a week, remove the
+tag and the comment in a PR that links the ticket, then close the ticket.
+
+**Review the list weekly** so quarantine doesn't become a graveyard:
+
+```bash
+pytest -m quarantine --collect-only -q
+```
+
+Anything quarantined for more than two sprints should be fixed or deleted.
 
 ---
 
@@ -360,11 +457,35 @@ the build on any violation. Config lives in `pyproject.toml` (`[tool.ruff]`, `[t
 
 GitHub Actions (`.github/workflows/`):
 
-- **`e2e-gate.yml`** (on PRs) — `ruff` + `ruff format` + `mypy`, then `pytest -m "smoke or
-  critical"`, then `allure generate`, uploads the report artifact. The hard gate is pytest's exit
-  code.
-- **`e2e-nightly.yml`** (cron 02:00 UTC + manual) — `pytest -m "regression or contract"`, restores
-  Allure history, runs the triage script, uploads the report.
+```mermaid
+flowchart TB
+    subgraph GATE["e2e-gate.yml (on PR)"]
+        direction LR
+        G1["ruff, ruff format, mypy"] --> G2["pytest -m 'smoke or critical'"]
+        G2 --> G3["allure generate<br/>+ allure quality-gate"] --> G4["Report artifact"]
+    end
+    GATE -->|"pytest exit code is the gate"| MERGE(["Merge if green"])
+    CACHE[("Actions cache<br/>allure/history/history.jsonl")]
+    CACHE -.->|"restore, read-only"| GATE
+    subgraph NIGHT["e2e-nightly.yml (02:00 UTC)"]
+        direction LR
+        N1["pytest: every scenario + contract"] --> N2["allure generate<br/>appends one run to history"]
+        N2 --> N3["Report + raw results artifacts"]
+    end
+    CACHE <-->|"restore before, save after (even on failure)"| NIGHT
+    NIGHT --> TRI["e2e-failure-triage agent<br/>skips known issues, classifies new failures"]
+    TRI --> PRC["PR comment (GitHub MCP)"]
+    TRI --> JIRA["Jira draft (asks before filing)"]
+```
+
+- **`e2e-gate.yml`** (on PRs) — `ruff` + `ruff format` + `mypy`, then `pytest -m "(smoke or
+  critical) and not quarantine" -n auto` (with nightly history restored read-only), then `allure generate` and `allure
+  quality-gate`, uploads the report artifact. The hard gate is pytest's exit code.
+- **`e2e-nightly.yml`** (cron 02:00 UTC + manual) — restores Allure history; runs every
+  scenario in parallel (`-m "not contract" -n auto`, `@quarantine` included), then the
+  schemathesis contract tests (JUnit into the same results), then the `e2e-` data sweeper;
+  saves history even on failure; uploads the report, raw results (for the triage agent) and
+  Playwright traces of failed UI tests.
 
 **Required GitHub secrets** (Settings → Secrets → Actions): `E2E_API_BASE_URL`, `E2E_UI_BASE_URL`,
 `E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`, `E2E_API_KEY` (if endpoints need it), and (nightly)
@@ -400,6 +521,11 @@ never edits tests.
 **Why pytest + pytest-bdd (not duplicate)?** pytest-bdd is a *plugin on top of pytest* — one
 runner. The `.feature` + step defs *become* pytest tests; there's no second copy.
 
+**What about retries and flaky waits?** `ApiClient` retries connection errors, `429`/`5xx`
+on idempotent calls, and an expired token. When the backend is eventually consistent, poll with
+`wait_until` (`tests/support/polling.py`, exponential backoff 0.5s → 5s cap), never `sleep`. Failed tests are never re-run: a flaky
+test is a bug to triage, not to retry until green.
+
 **Why arrange-via-API?** dev1 is shared and DynamoDB has no easy rollback. Seeding via API with
 namespaced/ephemeral data keeps tests independent and cleanable. Never seed through the UI.
 
@@ -411,8 +537,8 @@ Pinned to **latest compatible**, verified resolvable (`uv pip install -e .`). Se
 
 | Package | Pin | Note |
 |---|---|---|
-| pytest | `>=8.3` → resolves to **9.1.1** | schemathesis 4.21 *requires* pytest ≥9; pytest-bdd 8.1 supports it |
-| pytest-bdd | `>=8.1.0` | BDD layer (plugin on pytest) |
+| pytest | `>=8.3,<9.2` → resolves to **9.1.1** | schemathesis 4.21 *requires* pytest ≥9; pytest 9.2 breaks pytest-bdd 9.0 |
+| pytest-bdd | `>=8.1.0,<10` | BDD layer (plugin on pytest) |
 | pytest-playwright / playwright | `>=0.8.0` / `>=1.60.0` | UI E2E |
 | httpx | `>=0.28.1` | API E2E |
 | schemathesis | `>=4.21.0` | v4 — major rewrite from v3 |

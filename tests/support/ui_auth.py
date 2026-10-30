@@ -2,8 +2,8 @@
 
 Arrange-via-API applied to login: mint tokens via /auth/signin, then inject them into browser
 localStorage the way the app reads them, so UI tests skip the login form. Exactly one UI
-test (the login journey itself) should log in through the form with a fresh, unauthenticated
-context; every other UI test reuses this seeded state.
+test (the login journey itself, tagged ``@logged_out``) logs in through the form with a fresh,
+unauthenticated context; every other UI test reuses this seeded state.
 
 ⚠️ VERIFY against the deployed app: this assumes AWS Amplify's default localStorage key
 scheme (`CognitoIdentityServiceProvider.<clientId>.<user>.<token>`). If the app stores its

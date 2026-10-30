@@ -20,9 +20,11 @@ Good design is enforced by **layering + tooling**, not intention.
 
 - **Data factories** (`Polyfactory` on Pydantic models) — every test arranges state via
   these, never by hand. Shared by API and UI tests. → `tests/support/factories.py`
-- **API client objects per resource** — encapsulate base URL, auth, headers, retries,
-  serialization, Allure-step wrapping. Tests never touch raw `httpx`. → extend
-  `tests/support/api_client.py`.
+- **API client objects per resource** — encapsulate paths and serialization, and wrap the
+  shared `ApiClient`, which already handles auth, retries and Allure steps. Tests never touch
+  raw `httpx`. → `tests/support/clients/`, built on `tests/support/api_client.py`.
+- **`wait_until` polling** for eventual consistency instead of `sleep`. →
+  `tests/support/polling.py`
 - **Small, composable page objects** over god-objects. → `tests/support/pages/`
 - **Shared, parametrized step library** (`parsers.parse`) + `Background` for
   preconditions. No copy-pasted step defs.
@@ -64,7 +66,8 @@ The canonical ban list lives in
 [`.github/instructions/e2e-best-practices.instructions.md`](.github/instructions/e2e-best-practices.instructions.md)
 — auto-applied to `tests/**` and enforced by the `e2e-test-reviewer` agent. Reject a PR if any
 item appears. In short: no logic / asserts / raw `httpx` / locators in step defs · no Playwright
-`APIRequestContext` for API tests · no hardcoded data or URLs · no `sleep` · no god-objects or
+`APIRequestContext` for API tests · no hardcoded data or URLs · no `sleep` (use `wait_until`) · no hand-rolled retries or
+test re-runs · no god-objects or
 shared mutable state · no copy-pasted step defs · no UI-seeded state · no silent locator self-heal.
 
 ## Golden exemplars

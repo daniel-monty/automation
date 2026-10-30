@@ -17,7 +17,7 @@ Default target environment: **dev1**.
 ```bash
 # setup
 python -m venv .venv && source .venv/bin/activate
-pip install -e . && pip install ruff mypy pre-commit
+pip install -e . --group dev
 playwright install
 npm install                       # Allure 3 CLI + Playwright CLI
 
@@ -25,7 +25,7 @@ npm install                       # Allure 3 CLI + Playwright CLI
 pytest -m api                     # API E2E only
 pytest -m ui                      # UI E2E only
 pytest -m "smoke or critical"     # PR gate subset (fast)
-pytest -m "regression or contract"  # nightly set
+pytest                            # nightly: every scenario + contract
 
 # quality (must pass — same bar as production code)
 ruff check . && ruff format --check . && mypy
@@ -81,7 +81,7 @@ allure/                   # Allure 3 config + self-hosted history
 - ❌ **Do not modify the MontyCloud application code** — only add/maintain test infrastructure.
 - ❌ **No unit tests** — E2E / system-level only.
 - The full test-authoring **ban list** (thin step defs; no raw `httpx`/locators; no Playwright
-  `APIRequestContext` for API; arrange-via-API; no `sleep`/god-objects/copy-paste; no silent
+  `APIRequestContext` for API; arrange-via-API; no `sleep` (use `wait_until`)/hand-rolled retries/god-objects/copy-paste; no silent
   self-heal) is canonical in `.github/instructions/e2e-best-practices.instructions.md`.
 
 ## Workflow (slash prompts)

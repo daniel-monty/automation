@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from tests.support.config import Settings
+from tests.support.config import Settings, TestUser
 
 # Renew when fewer than this many seconds remain on the token.
 _REFRESH_SKEW_SECONDS = 120
@@ -32,8 +32,12 @@ def _jwt_expiry(token: str) -> int:
 class Authenticator:
     """Caching token provider backed by the platform's HTTP `/auth/signin` endpoint."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, user: TestUser | None = None) -> None:
+        """Sign in as ``user``, or as the default ``E2E_TEST_USERNAME`` user when omitted."""
         self._settings = settings
+        self._user = user or TestUser(
+            username=settings.test_username, password=settings.test_password
+        )
         self._http = httpx.Client(base_url=settings.api_base_url, timeout=30.0)
         self._id_token = ""
         self._access_token = ""
@@ -82,8 +86,8 @@ class Authenticator:
         response = self._http.post(
             self._settings.auth_signin_path,
             json={
-                "Username": self._settings.test_username,
-                "Password": self._settings.test_password.get_secret_value(),
+                "Username": self._user.username,
+                "Password": self._user.password.get_secret_value(),
             },
         )
         response.raise_for_status()

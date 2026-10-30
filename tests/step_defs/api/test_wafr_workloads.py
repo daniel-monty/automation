@@ -11,7 +11,7 @@ from typing import Any, cast
 import allure
 import httpx
 import pytest
-from pytest_bdd import given, parsers, scenarios, then, when
+from pytest_bdd import parsers, scenarios, then, when
 
 from tests.support.api_client import ApiClient
 from tests.support.assertions import (
@@ -61,16 +61,6 @@ def unauthenticated_workloads_client(
 def context() -> dict[str, Any]:
     """Per-test mutable state bag shared across step defs."""
     return {}
-
-
-# ---------------------------------------------------------------------------
-# Background
-# ---------------------------------------------------------------------------
-
-
-@given("I am an authenticated user")
-def _authenticated() -> None:
-    """Auth is supplied by the api_client fixture (login via /auth/signin -> ID token)."""
 
 
 # ---------------------------------------------------------------------------

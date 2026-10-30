@@ -8,8 +8,12 @@ requires-python = ">=3.11"
 # Latest *compatible* pins, researched 2026-06. See README "Versions & compatibility".
 # This suite is standalone and runs against deployed environments (default: dev1).
 dependencies = [
-    "pytest>=8.3",               # resolver picks newest compatible across pytest-bdd + schemathesis
-    "pytest-bdd>=8.1.0",         # BDD layer (plugin on top of pytest — one runner, not two)
+    # pytest 9.2 removed FixtureManager._arg2fixturedefs, which pytest-bdd 9.0 needs. Raise the
+    # cap only after a fresh install passes a real run (not just --collect-only).
+    "pytest>=8.3,<9.2",
+    "pytest-bdd>=8.1.0,<10",     # BDD layer (plugin on top of pytest — one runner, not two)
+    "pytest-xdist>=3.8.0",       # parallel runs (`-n auto --dist loadfile` in CI)
+    "pytest-timeout>=2.4.0",     # per-test timeout so a hung call/browser can't stall CI
     "pytest-playwright>=0.8.0",  # UI E2E (thin, critical journeys only)
     "playwright>=1.60.0",        # browser engine; run `playwright install` after pip install
     "httpx>=0.28.1",             # API E2E client (the workhorse)
@@ -22,8 +26,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15.0",  # lint + format (scoped to this suite only)
-    "mypy>=2.1.0",   # type-check
+    # Exact pins: a new ruff release can change formatting (0.17 formats Markdown code blocks)
+    # and turn CI red with no code change. Bump deliberately, together with .pre-commit-config.yaml.
+    "ruff==0.17.3",
+    "mypy==2.4.1",
     "pre-commit>=4.0",
 ]
 
@@ -35,8 +41,11 @@ minversion = "8.3"
 testpaths = ["tests"]
 pythonpath = ["."]
 bdd_features_base_dir = "tests/features"
-# allure results land here; Allure 3 CLI (npm `allure`) renders them.
-addopts = "--alluredir=allure-results --strict-markers -ra"
+# allure results land here (wiped each run so reports never mix runs; trends live in
+# allure/history/, which is never cleaned). Allure 3 CLI (npm `allure`) renders them.
+# Failed UI tests keep a Playwright trace in test-results/ (`playwright show-trace <zip>`).
+addopts = "--alluredir=allure-results --clean-alluredir --strict-markers -ra --tracing=retain-on-failure"
+timeout = 300  # seconds per test (pytest-timeout); a stuck test fails instead of hanging CI
 markers = [
     "smoke: fast must-pass checks; part of the PR gate",
     "critical: business-critical journeys; part of the PR gate",
@@ -44,6 +53,8 @@ markers = [
     "ui: UI E2E (Playwright) — thin, critical, browser-only journeys",
     "regression: full regression set; nightly only",
     "contract: schemathesis contract/fuzz; nightly only",
+    "logged_out: UI scenario starts without the injected login (the login-form journey)",
+    "quarantine: known-flaky test kept out of the PR gate, still runs nightly. Humans add/remove it, with a Jira key (README §8.1)",
 ]
 
 # ---------------------------------------------------------------------------

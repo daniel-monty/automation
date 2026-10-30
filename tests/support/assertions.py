@@ -4,10 +4,13 @@ business terms. Step defs call these — they never inline raw asserts.
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import allure
 import httpx
+from pydantic import BaseModel, ValidationError
+
+M = TypeVar("M", bound=BaseModel)
 
 
 @allure.step("Response status is {expected}")
@@ -16,6 +19,20 @@ def assert_status(response: httpx.Response, expected: int) -> None:
     assert response.status_code == expected, (
         f"expected {expected}, got {response.status_code}: {response.text}"
     )
+
+
+def assert_matches_model(response: httpx.Response, model: type[M]) -> M:
+    """Validate the JSON body against a response model and return the parsed object.
+
+    Catches contract drift (missing/renamed/retyped fields) in every API test, not only in the
+    nightly schemathesis run. Response models allow extra fields, so additions don't fail.
+    """
+    # Not @allure.step: allure passes params to the title as strings, so model.__name__ fails.
+    with allure.step(f"Response body matches {model.__name__}"):
+        try:
+            return model.model_validate(response.json())
+        except ValidationError as exc:
+            raise AssertionError(f"response does not match {model.__name__}:\n{exc}") from None
 
 
 @allure.step("Response status is one of {expected}")

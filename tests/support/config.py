@@ -7,8 +7,17 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class TestUser(BaseModel):
+    """Credentials for one extra test user (a role or tenant), e.g. ``read_only``."""
+
+    __test__ = False  # not a pytest test class, despite the name
+
+    username: str
+    password: SecretStr
 
 
 class Settings(BaseSettings):
@@ -30,6 +39,9 @@ class Settings(BaseSettings):
     auth_refresh_path: str = "/auth/refresh-token"
     test_username: str = ""
     test_password: SecretStr = SecretStr("")
+    # Extra users by role/tenant, as JSON: {"read_only": {"username": "...", "password": "..."}}.
+    # Used via the `api_client_as("read_only")` fixture for permission / tenant-isolation tests.
+    test_users: dict[str, TestUser] = {}
     # Authorization header scheme: "" sends the raw token; e.g. "Bearer" sends "Bearer <token>".
     auth_header_scheme: str = ""
     # x-api-key header — only if the target endpoints require it.
