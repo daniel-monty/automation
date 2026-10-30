@@ -17,7 +17,8 @@ genuinely browser-bound journeys.
 
 ## Step 1: Confirm it earns a browser
 
-Input: `${input:journey:Describe the journey, or paste a Jira key}` (fetch Jira if a key).
+Input: the argument passed after `/add-ui-test` — a journey description or a Jira key (fetch Jira
+if a key). If none was given, ask for it.
 **Apply the two-gate rule.** If an API call could prove it, **halt** and route to
 `/add-api-test`. Proceed only if the value is the rendered experience or a true cross-system flow.
 

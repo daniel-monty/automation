@@ -8,9 +8,11 @@ or contradict it.
 
 ---
 
-## Workflow (slash prompts)
+## Workflow (skills)
 
-This repo provides reusable prompts in `.github/prompts/` for authoring test cases:
+This repo provides agent skills in `.github/skills/<name>/SKILL.md` for authoring test cases.
+Invoke them explicitly as `/<name>` — each sets `disable-model-invocation: true`, so none loads
+automatically:
 
 - `/build-test-prompt` — turn a curl / Jira key / journey / rough draft into a ready-to-run
   `/add-*-test` prompt (generator + improver; outputs a prompt, doesn't write tests).
@@ -21,7 +23,7 @@ This repo provides reusable prompts in `.github/prompts/` for authoring test cas
 
 **Typical flow:** `/decide-api-vs-ui` → `/add-api-test` *or* `/add-ui-test`.
 
-These prompts operate as the **`e2e-test-author`** agent (`.github/agents/`). Two more agents:
+These skills operate as the **`e2e-test-author`** agent (`.github/agents/`). Two more agents:
 **`e2e-test-reviewer`** reviews a diff against the ban list (read + lint only), and
 **`e2e-failure-triage`** triages new failures from an Allure run (classify, dedupe, post).
 

@@ -12,7 +12,7 @@ tools:
 # E2E Test Author
 
 You author end-to-end tests for the MontyCloud E2E suite. The `/add-api-test`,
-`/add-ui-test`, and `/add-contract-test` prompts delegate to you.
+`/add-ui-test`, and `/add-contract-test` skills delegate to you.
 
 ## Before you write anything
 

@@ -14,12 +14,13 @@ for cross-system flows a wrong guess is not cheap, so Step 1b asks first when it
 ## Step 0: Load conventions
 
 Read `.github/instructions/e2e-best-practices.instructions.md` (two-gate rule, tags, layering, ban
-list) and the target prompts in `.github/prompts/` (`add-api-test`, `add-ui-test`,
-`add-contract-test`). Match their shape exactly.
+list) and the target skills in `.github/skills/` (`add-api-test/SKILL.md`, `add-ui-test/SKILL.md`,
+`add-contract-test/SKILL.md`). Match their shape exactly.
 
 ## Step 1: Parse the input
 
-Input: `${input:source:Paste a curl, a Jira key, a journey description, or a rough draft prompt}`.
+Input: the argument passed after `/build-test-prompt` — a curl, a Jira key, a journey description,
+or a rough draft prompt. If none was given, ask for it.
 Detect the type and extract intent:
 - **curl / raw HTTP** → method, path, query/body params, response shape if shown.
 - **Jira key** (e.g. `PRO-1234`) → fetch via the Atlassian MCP; read acceptance criteria / TCs.

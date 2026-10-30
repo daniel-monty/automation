@@ -4,7 +4,7 @@ Copy-paste templates for every layer. They match the support layer in `tests/sup
 (`ApiClient`, `BasePage`, `ModelFactory`, `assert_status`). All templates are written to pass
 `ruff` + `mypy --strict`. Replace `Resource`/`resource` with the real resource name.
 
-> This file is loaded on demand by the `/add-*` prompts. The always-on rules live in
+> This file is loaded on demand by the `/add-*` skills. The always-on rules live in
 > [e2e-best-practices.instructions.md](e2e-best-practices.instructions.md).
 
 ---

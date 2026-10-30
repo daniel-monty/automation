@@ -16,7 +16,8 @@ Operate as the **`e2e-test-author`** agent. Produce a complete, layered, green A
 
 ## Step 1: Resolve the journey
 
-Input: `${input:journey:Describe the journey, or paste a Jira key}`.
+Input: the argument passed after `/add-api-test` — a journey description or a Jira key. If none was
+given, ask for it.
 - Jira key → fetch it (`getJiraIssue(cloudId="montycloud.atlassian.net", issueIdOrKey=...)`),
   extract scenarios + acceptance criteria. No Jira access → ask the user to paste them.
 - Confirm this is an **API** journey (run `/decide-api-vs-ui` if unsure). Halt if it should be UI.

@@ -15,7 +15,8 @@ Read `.github/instructions/e2e-best-practices.instructions.md` (the two-gate rul
 
 ## Step 2: Resolve the journey
 
-Input: `${input:journey:Describe the journey, or paste a Jira key}`.
+Input: the argument passed after `/decide-api-vs-ui` — a journey description or a Jira key. If none was
+given, ask for it.
 - If it looks like a Jira key (e.g. `PRO-1234`), fetch it
   (`getJiraIssue(cloudId="montycloud.atlassian.net", issueIdOrKey=...)`) and read the
   acceptance criteria / test cases. If you cannot access Jira, ask the user to paste them.

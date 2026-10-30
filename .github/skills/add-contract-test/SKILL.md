@@ -19,7 +19,8 @@ runs in the **nightly** suite (`@contract`), authenticated against dev1.
 
 The spec comes from `E2E_OPENAPI_SPEC` (the richer spec). If it is unset or unreachable,
 **halt and ask** — do not point schemathesis at a fabricated or stale spec. Confirm the spec is
-OpenAPI 3.x and lists the target endpoint group `${input:scope:Endpoint group/tag, or 'all'}`.
+OpenAPI 3.x and lists the target endpoint group — the argument passed after
+`/add-contract-test` (an endpoint group/tag, or `all`; ask if none was given).
 
 ## Step 2: Plan
 

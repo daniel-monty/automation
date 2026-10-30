@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Source of truth for AI agents (GitHub Copilot, Claude, etc.) working in this repo.
-Keep changes here small and stable. Task-specific recipes live in `.github/prompts/`;
+Keep changes here small and stable. Task-specific recipes live in `.github/skills/` (one `SKILL.md` each);
 full code templates live in `.github/instructions/e2e-best-practices.reference.md`.
 
 ## Project Overview
@@ -84,7 +84,10 @@ allure/                   # Allure 3 config + self-hosted history
   `APIRequestContext` for API; arrange-via-API; no `sleep` (use `wait_until`)/hand-rolled retries/god-objects/copy-paste; no silent
   self-heal) is canonical in `.github/instructions/e2e-best-practices.instructions.md`.
 
-## Workflow (slash prompts)
+## Workflow (skills)
+
+Agent skills in `.github/skills/<name>/SKILL.md`, invoked explicitly as `/<name>`
+(`disable-model-invocation: true` — they never auto-load):
 
 - `/build-test-prompt` — turn a curl / Jira key / journey / draft into a ready-to-run `/add-*-test` prompt.
 - `/decide-api-vs-ui` — apply the two-gate rule to a candidate journey (run first).
@@ -96,7 +99,7 @@ Every authored test must pass `ruff`, `mypy`, and the layering/ban-list checks b
 
 ## Agents & MCP
 
-Agents (`.github/agents/`): **`e2e-test-author`** (prompts delegate to it), **`e2e-test-reviewer`**
+Agents (`.github/agents/`): **`e2e-test-author`** (the `/add-*` skills delegate to it), **`e2e-test-reviewer`**
 (read + lint, ban-list enforcement), **`e2e-failure-triage`** (classify/dedupe/post new failures).
 The **Atlassian MCP** (`.vscode/mcp.json`) gives agents Jira/Confluence access — fetch ticket
 acceptance criteria, read the known-issues list, post triage summaries. Don't put Jira tokens in

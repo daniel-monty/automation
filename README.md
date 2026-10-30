@@ -6,7 +6,7 @@ One language (Python), one runner (**pytest + pytest-bdd**), one combined report
 > **Status:** infrastructure + GitHub Copilot authoring layer are complete and verified
 > (`ruff`/`mypy` clean, deps resolve, `pytest` collects). There are **no `.feature` tests yet** —
 > the first golden exemplars (one API journey, one UI journey) are authored next, using the
-> `/add-*` prompts below.
+> `/add-*` skills below.
 
 E2E / system-level only — **no unit tests**. Tests exercise the running, **deployed** system
 (the MontyCloud backend is AWS serverless; there is no local server to boot). Default target
@@ -48,7 +48,7 @@ pytest -m "(smoke or critical) and not quarantine"        # run the gate subset
 npm run report:generate && npm run report:open            # view the Allure report
 ```
 
-To add a test, open the repo in VS Code / Copilot and run `/decide-api-vs-ui`, then
+To add a test, open the repo in VS Code / Copilot and run the `/decide-api-vs-ui` skill, then
 `/add-api-test` or `/add-ui-test` (see [§7](#7-writing-a-new-test)).
 
 ---
@@ -281,6 +281,10 @@ flowchart TD
 
 <sub>Purple: read-only (never writes files). Teal: writes the test files.</sub>
 
+The `/…` commands above are **agent skills** in `.github/skills/<name>/SKILL.md` (Copilot no longer
+supports `.prompt.md` prompt files). Run one by typing `/<name>` plus its argument in Copilot Chat;
+each sets `disable-model-invocation: true`, so it only runs when you invoke it.
+
 ### 7.1 Decide the layer (always first)
 
 Apply the [two-gate rule](#1-architecture--the-two-gate-rule). In Copilot:
@@ -289,7 +293,7 @@ Apply the [two-gate rule](#1-architecture--the-two-gate-rule). In Copilot:
 /decide-api-vs-ui  "user enables a Day2 bot and sees it become active"
 ```
 
-It returns a verdict (API / UI / contract) + tags and tells you which `/add-*` prompt to run.
+It returns a verdict (API / UI / contract) + tags and tells you which `/add-*` skill to run.
 
 ### 7.2 Add an API test (the common case)
 
@@ -426,7 +430,7 @@ Automation/
 ├── .github/
 │   ├── copilot-instructions.md
 │   ├── instructions/         # e2e-best-practices.instructions.md (+ .reference.md templates)
-│   ├── prompts/              # /build-test-prompt, /decide-api-vs-ui, /add-api-test, /add-ui-test, /add-contract-test
+│   ├── skills/               # <name>/SKILL.md: build-test-prompt, decide-api-vs-ui, add-api-test, add-ui-test, add-contract-test
 │   ├── agents/               # e2e-test-author, e2e-test-reviewer, e2e-failure-triage
 │   └── workflows/            # e2e-gate (PR) + e2e-nightly
 └── tests/
@@ -557,4 +561,4 @@ v3 config keys; (2) schemathesis→Allure reporting path; (3) the richer `E2E_OP
 - [`AGENTS.md`](AGENTS.md) — the conventions source-of-truth (read first when authoring).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — Definition of Done + the ban-list PR checklist.
 - `.github/instructions/e2e-best-practices.instructions.md` (+ `.reference.md`) — rules + templates.
-- `.github/prompts/` — the `/add-*` and `/decide-api-vs-ui` authoring prompts.
+- `.github/skills/` — the `/build-test-prompt`, `/decide-api-vs-ui` and `/add-*` authoring skills.
