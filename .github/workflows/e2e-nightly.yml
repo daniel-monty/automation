@@ -33,28 +33,53 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           playwright install --with-deps chromium
+      - name: Install Allure 3 CLI
+        run: npm ci
       - name: Restore Allure history
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: allure/history
           key: allure-history-${{ github.run_id }}
           restore-keys: allure-history-
-      - name: Full regression + contract
-        run: pytest -m "regression or contract" --alluredir=allure-results
+      # Every scenario, @quarantine included (that's how a fixed flaky test shows up green).
+      - name: Full regression (every scenario)
+        run: pytest -m "not contract" -n auto --dist loadfile
+      # Contract results reach Allure as JUnit XML (allure-pytest-bdd reports Gherkin only).
+      # Its own --alluredir keeps --clean-alluredir from wiping the regression results above.
+      - name: Contract / fuzz (schemathesis)
+        if: ${{ !cancelled() }}
+        run: >-
+          pytest tests/contract -m contract
+          --alluredir=allure-contract
+          --junitxml=allure-results/contract-junit.xml
+      - name: Sweep leftover e2e- test data
+        if: ${{ !cancelled() }}
+        run: python -m tests.support.sweep
       - name: Generate Allure 3 report (with history)
-        if: always()
-        run: |
-          npm install -g allure
-          allure generate allure-results --output allure-report --config allure/allurerc.mjs
+        if: ${{ !cancelled() }}
+        run: npm run report:generate
+      - name: Save Allure history
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
+        with:
+          path: allure/history
+          key: allure-history-${{ github.run_id }}
       - name: Upload Allure report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: allure-report-nightly
           path: allure-report
       - name: Upload Allure results (raw — input for the e2e-failure-triage agent)
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: allure-results-nightly
           path: allure-results
+      - name: Upload Playwright traces (failed UI tests)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-nightly
+          path: test-results
+          if-no-files-found: ignore

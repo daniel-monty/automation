@@ -143,9 +143,7 @@ def _create_named(resource_client: ResourceClient, context: dict[str, object], n
 
 @when("I create a resource with no name")
 def _create_invalid(resource_client: ResourceClient, context: dict[str, object]) -> None:
-    context["response"] = resource_client._client.request(
-        "POST", ResourceClient._BASE, json={}
-    )
+    context["response"] = resource_client._client.request("POST", ResourceClient._BASE, json={})
 
 
 @then(parsers.parse('the resource "{name}" can be retrieved'))

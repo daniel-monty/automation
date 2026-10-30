@@ -44,7 +44,7 @@ playwright install                                         # browsers
 npm install                                                # Allure 3 report CLI
 cp .env.example .env                                       # fill in dev1 creds (never commit)
 
-pytest -m "smoke or critical"                              # run the gate subset
+pytest -m "(smoke or critical) and not quarantine"        # run the gate subset
 npm run report:generate && npm run report:open            # view the Allure report
 ```
 
@@ -461,7 +461,7 @@ GitHub Actions (`.github/workflows/`):
 flowchart TB
     subgraph GATE["e2e-gate.yml (on PR)"]
         direction LR
-        G1["ruff, ruff format, mypy"] --> G2["pytest -m 'smoke or critical'"]
+        G1["ruff, ruff format, mypy"] --> G2["pytest -m '(smoke or critical)<br/>and not quarantine' -n auto"]
         G2 --> G3["allure generate<br/>+ allure quality-gate"] --> G4["Report artifact"]
     end
     GATE -->|"pytest exit code is the gate"| MERGE(["Merge if green"])
@@ -479,7 +479,7 @@ flowchart TB
 ```
 
 - **`e2e-gate.yml`** (on PRs) — `ruff` + `ruff format` + `mypy`, then `pytest -m "(smoke or
-  critical) and not quarantine" -n auto` (with nightly history restored read-only), then `allure generate` and `allure
+  critical) and not quarantine" -n auto --dist loadfile` (with nightly history restored read-only), then `allure generate` and `allure
   quality-gate`, uploads the report artifact. The hard gate is pytest's exit code.
 - **`e2e-nightly.yml`** (cron 02:00 UTC + manual) — restores Allure history; runs every
   scenario in parallel (`-m "not contract" -n auto`, `@quarantine` included), then the
@@ -545,7 +545,7 @@ Pinned to **latest compatible**, verified resolvable (`uv pip install -e .`). Se
 | allure-pytest-bdd | `>=2.16.0` | emits Allure **2** results |
 | **Allure 3 CLI** (npm `allure`) | `^3.12.0` | the v3 report generator |
 | polyfactory / pydantic / pydantic-settings | `>=3.3.0` / `>=2.13.0` / `>=2.14.0` | data + config |
-| ruff / mypy | `>=0.15.0` / `>=2.1.0` | quality bar |
+| ruff / mypy | `==0.17.3` / `==2.4.1` | quality bar; exact pins (dev group + `.pre-commit-config.yaml`), bumped together |
 
 **Open items to validate as tests land:** (1) Allure 3 rendering of `allure-pytest-bdd` results +
 v3 config keys; (2) schemathesis→Allure reporting path; (3) the richer `E2E_OPENAPI_SPEC`.

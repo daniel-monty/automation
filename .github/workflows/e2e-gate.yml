@@ -1,6 +1,6 @@
 name: E2E Gate (PR)
 
-# Fast PR gate: lint + type-check + the @smoke/@critical subset only.
+# Fast PR gate: lint + type-check + the @smoke/@critical subset only (minus @quarantine).
 # The hard gate is pytest's exit code; Allure 3's quality gate is the reporting-side gate.
 
 on:
@@ -24,9 +24,8 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install ruff mypy
+          python -m pip install --upgrade pip  # --group needs pip >= 25.1
+          pip install -e . --group dev         # pinned ruff/mypy, same as pre-commit
       - name: Ruff (lint + format check)
         run: |
           ruff check .
@@ -59,16 +58,33 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           playwright install --with-deps chromium
-      - name: Run gate suite (@smoke or @critical)
-        run: pytest -m "smoke or critical" --alluredir=allure-results
+      - name: Install Allure 3 CLI
+        run: npm ci
+      # Read-only: PRs show trends from nightly history but never save their own runs into it.
+      - name: Restore Allure history (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: allure/history
+          key: allure-history-${{ github.run_id }}
+          restore-keys: allure-history-
+      - name: Run gate suite (@smoke or @critical, not @quarantine)
+        run: pytest -m "(smoke or critical) and not quarantine" -n auto --dist loadfile
       - name: Generate Allure 3 report
-        if: always()
-        run: |
-          npm install -g allure
-          allure generate allure-results --output allure-report --config allure/allurerc.mjs
+        if: ${{ !cancelled() }}
+        run: npm run report:generate
+      - name: Allure quality gate (no critical-severity failures)
+        if: ${{ !cancelled() }}
+        run: npm run report:gate
       - name: Upload Allure report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: allure-report-gate
           path: allure-report
+      - name: Upload Playwright traces (failed UI tests)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-gate
+          path: test-results
+          if-no-files-found: ignore
