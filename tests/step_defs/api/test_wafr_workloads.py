@@ -32,7 +32,7 @@ scenarios("api/wafr_workloads.feature")
 # applies these labels to every scenario bound in this module.
 _allure: Any = allure  # allure's decorators are untyped; access via Any to satisfy mypy strict
 pytestmark = [
-    _allure.epic("Assessments"),
+    _allure.epic("Azure Assessments"),
     _allure.feature("WAFR Workloads"),
     _allure.story("List"),
 ]
